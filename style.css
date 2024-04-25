@@ -6,14 +6,10 @@ html {
 body {
 	background-color: rgb(255, 255, 255);
 	color: rgb(0, 0, 0);
+	margin: 0;
 }
 
 h1 {
-	font-size: 4em;
-	font-weight: 600;
-}
-
-h2 {
 	font-size: 1.75em;
 	font-weight: 600;
 }
@@ -24,6 +20,23 @@ p {
 	font-weight: 550;
 }
 
+a {
+	text-decoration: none;
+}
+
+.social-icon>img{
+	transition: 0.2s;
+}
+
+.social-icon>img:hover {
+	opacity: 0.75;
+}
+
+.title {
+	font-size: 3em;
+	font-weight: 600;
+}
+
 .flex-center {
 	height: 100%;
 
@@ -31,4 +44,38 @@ p {
 	flex-flow: column;
 	justify-content: center;
 	align-items: center;
+}
+
+.card {
+	width: 100%;
+
+	border-radius: 4px;
+
+	border-top: solid 3px;
+	border-color: rgba(242, 242, 242, 0);
+
+	transition: 0.2s;
+
+	display: flex;
+}
+
+.card:hover {
+	background-color: rgba(205, 205, 205, 0.075);
+	border-color: rgb(252, 252, 252);
+	box-shadow: 0px 3px 9px -4px rgba(0,0,0,0.25);
+}
+
+.card img {
+	display: block;
+	margin: 10px;
+
+	transition: 0.2s;
+}
+
+.card img:hover {
+	opacity: 0.75;
+}
+
+.social-icon {
+	text-decoration: none;
 }
