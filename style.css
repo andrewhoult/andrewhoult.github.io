@@ -81,6 +81,11 @@ a {
 	margin: 10px;
 }
 
+strong {
+	font-weight: 600;
+	color: rgb(137, 207, 120);
+}
+
 .social-icon {
 	text-decoration: none;
 }

@@ -1,5 +1,6 @@
 class ProjectCard {
-	constructor(description, link, imageUrl) {
+	constructor(title, description, link, imageUrl) {
+		this.title = title;
 		this.description = description;
 		this.link = link;
 		this.imageUrl = imageUrl;
@@ -10,7 +11,10 @@ class ProjectCard {
 		<a href="${this.link}">
 			<div class="project-card">
 				<img src="${this.imageUrl}" alt="Project thumbnail"/>
-				<p>${this.description}</p>
+				<div>
+					<strong>${this.title}</strong>
+					<p>${this.description}</p>
+				</div>
 			</div>
 		</a>
 		`
