@@ -74,10 +74,10 @@ a {
 .project-card img {
 	display: block;
 	margin: 10px;
-	max-height: 200px;
+	max-height: 150px;
 }
 
-.project-card p {
+.project-card p, .project-card strong {
 	margin: 10px;
 }
 

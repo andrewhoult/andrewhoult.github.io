@@ -15,16 +15,16 @@ function populateProjects() {
 			"projects/snow/images/thumbnail.png",
 		),
 		new ProjectCard(
-			"Breaking News",
-			"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
-			"projects/news/page.html",
-			"projects/news/images/thumbnail.png",
-		),
-		new ProjectCard(
 			"Obscurum",
 			"A sound intensive horror game where you can only see by using your trusty poking stick. Made during a 4 day game jam with a group of 5.",
 			"projects/sound/page.html",
 			"projects/sound/images/thumbnail.png",
+		),
+		new ProjectCard(
+			"Faking News",
+			"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
+			"projects/faking-news/page.html",
+			"projects/faking-news/images/thumbnail.png",
 		),
 		new ProjectCard(
 			"O2",
