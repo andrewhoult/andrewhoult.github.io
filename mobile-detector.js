@@ -1,6 +1,10 @@
 let isVertical = false;
 
-window.onresize = () => {
+checkAspect();
+
+window.onresize = checkAspect;
+
+function checkAspect() {
 	const oldIsVertical = isVertical;
 
 	const ratio = window.innerWidth / window.innerHeight;
