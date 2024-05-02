@@ -74,7 +74,7 @@ function populateProjects() {
 			"3D Physics",
 			"A simple 3D physics engine.",
 			"project-page.html?project-id=physics",
-			"projects/physics/images/thumbnail.png",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
 		),
 	];
 
