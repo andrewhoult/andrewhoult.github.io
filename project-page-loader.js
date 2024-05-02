@@ -7,13 +7,6 @@ class ProjectData {
 		this.description = description;
 		this.images = images;
 	}
-
-	getHTML() {
-		return `
-			<h1>${this.name}</h1>
-			<p>${this.description}</p>
-		`;
-	}
 }
 
 function getProjectData() {
@@ -40,6 +33,7 @@ function getProjectData() {
 window.onload = () => {
 	const project = getProjectData();
 	if (project) {
-		document.getElementById("project-body").innerHTML = project.getHTML();
+		document.getElementById("project-title").innerText = project.name;
+		document.getElementById("project-description").innerText = project.description;
 	}
 }
