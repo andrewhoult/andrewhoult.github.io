@@ -12,21 +12,21 @@ class ProjectData {
 function getProjectData() {
 	switch (projectId) {
 		case "beat-em-up":
-			return new ProjectData("BEAT 'Em Up", "This is a semester long group project", []);
+			return new ProjectData("BEAT 'Em Up", "projects/beat-em-up/description.html", []);
 		case "news":
-			return new ProjectData("Faking News", "This is a semester long group project", []);
+			return new ProjectData("Faking News", "projects/news/description.html", []);
 		case "snow":
-			return new ProjectData("Ice To Beat You", "This is a semester long group project", []);
+			return new ProjectData("Ice To Beat You", "projects/snow/description.html", []);
 		case "obscurum":
-			return new ProjectData("Obscurum", "This is a semester long group project", []);
+			return new ProjectData("Obscurum", "projects/obscurum/description.html", []);
 		case "o2":
-			return new ProjectData("O2", "This is a semester long group project", []);
+			return new ProjectData("O2", "projects/o2/description.html", []);
 		case "webgl":
-			return new ProjectData("WebGL Based Engine", "This is a semester long group project", []);
+			return new ProjectData("WebGL Based Engine", "projects/webgl/description.html", []);
 		case "physics":
-			return new ProjectData("3D Physics", "This is a semester long group project", []);
+			return new ProjectData("3D Physics", "projects/physics/description.html", []);
 		case "raytrace":
-			return new ProjectData("Raytracer", "This is a semester long group project", []);
+			return new ProjectData("Raytracer", "projects/raytrace/description.html", []);
 	}
 }
 
@@ -34,6 +34,9 @@ window.onload = () => {
 	const project = getProjectData();
 	if (project) {
 		document.getElementById("project-title").innerText = project.name;
-		document.getElementById("project-description").innerText = project.description;
+
+		fetch(project.description).then(async response => {
+			document.getElementById("project-description").innerHTML = await response.text();
+		});
 	}
 }
