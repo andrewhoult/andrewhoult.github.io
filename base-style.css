@@ -36,6 +36,10 @@ a {
 	opacity: 0.75;
 }
 
+.social-icon {
+	text-decoration: none;
+}
+
 .title {
 	font-size: 3em;
 	font-weight: 600;
@@ -50,42 +54,7 @@ a {
 	align-items: center;
 }
 
-.project-card {
-	width: 100%;
-
-	border-radius: 4px;
-
-	border-top: solid 3px;
-	border-color: rgba(242, 242, 242, 0);
-
-	margin-top: 20px;
-
-	transition: 0.2s;
-
-	display: flex;
-}
-
-.project-card:hover {
-	background-color: rgba(205, 205, 205, 0.15);
-	border-color: rgba(205, 205, 205, 0.1);
-	box-shadow: 0px 3px 9px -4px rgba(0, 0, 0, 0.25);
-}
-
-.project-card img {
-	display: block;
-	margin: 10px;
-	max-height: 150px;
-}
-
-.project-card p, .project-card strong {
-	margin: 10px;
-}
-
 strong {
 	font-weight: 600;
 	color: rgb(137, 207, 120);
-}
-
-.social-icon {
-	text-decoration: none;
 }

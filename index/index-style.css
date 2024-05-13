@@ -1,0 +1,39 @@
+.project-card {
+	width: 100%;
+
+	border-radius: 3px;
+
+	margin-top: 20px;
+	padding: 5px;
+
+	transition: 0.2s;
+
+	display: flex;
+}
+
+.project-card:hover {
+	background-color: rgba(205, 205, 205, 0.2);
+	border-color: rgba(205, 205, 205, 0.1);
+	box-shadow: 0px 3px 9px -4px rgba(0, 0, 0, 0.25);
+}
+
+.project-card img {
+	display: block;
+	margin: 10px;
+	max-height: 150px;
+}
+
+.project-card p,
+.project-card strong {
+	margin: 10px;
+}
+
+.main-content {
+	max-width: min(800px, calc(100% - 20px));
+	margin: 100px auto;
+}
+
+.signature {
+	margin-left: 20px;
+	opacity: 0.8;
+}
