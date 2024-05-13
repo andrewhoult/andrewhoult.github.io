@@ -1,0 +1,11 @@
+.main-content {
+	width: min(90%, 900px);
+	margin: 0px auto;
+
+	background-color: rgb(255, 255, 255);
+
+	height: 100%;
+	padding: 20px;
+
+	box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.4);
+}
