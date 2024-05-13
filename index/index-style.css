@@ -25,6 +25,10 @@
 	margin: 10px;
 }
 
+.project-card div {
+	margin-top: 10px;
+}
+
 .main-content {
 	max-width: min(800px, calc(100% - 20px));
 	margin: 100px auto;
