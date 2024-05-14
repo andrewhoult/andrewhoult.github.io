@@ -52,6 +52,26 @@
 	opacity: 0.8;
 }
 
+.sidebar {
+	position: sticky;
+	margin: 0 0 0 10%;
+	top: 20px;
+	height: 100%;
+	left: 0;
+	align-self: start;
+}
+
+@media not screen {
+	.sidebar {
+		display: none;
+	}
+}
+
+.footer {
+	position: fixed;
+	bottom: 10%;
+}
+
 @media screen and (max-width: 1299px) {
 	.main-content {
 		max-width: min(800px, calc(100% - 20px));
