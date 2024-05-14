@@ -5,7 +5,48 @@
 	background-color: rgb(255, 255, 255);
 
 	height: 100%;
-	padding: 20px;
+	padding: 60px;
 
-	box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.4);
+	box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.4);
+}
+
+#project-gallery {
+	position: relative;
+	width: 600px;
+}
+
+#project-gallery>#main-image {
+	width: 100%;
+}
+
+#project-gallery>#thumbnails {
+	margin-top: 5px;
+
+	display: flex;
+	align-items: center;
+	gap: 7px;
+
+	overflow-x: scroll;
+
+	padding-bottom: 5px;
+
+	white-space: nowrap;
+}
+
+#project-gallery>#thumbnails img {
+	height: 65px;
+}
+
+#image-selector {
+	display: inline-block;
+	position: absolute;
+	left: 0px;
+
+	height: 65px;
+	width: 115.56px;
+
+	box-sizing: border-box;
+	border-style: solid;
+	border-color: rgb(255, 255, 255);
+	box-shadow: 0px 3px 5px 0px rgba(0, 0, 0, 0.5);
 }
