@@ -1,17 +1,30 @@
 .project-card {
-	border-radius: 3px;
+	border-radius: 4px;
 
 	margin-top: 20px;
 	padding: 5px;
 
-	transition: 0.2s;
-
 	display: flex;
+
+	border-style: solid;
+	border-width: 0px;
+	border-top-width: 1px;
+	border-color: transparent;
+
+	transition: 0.2s;
 }
 
 .project-card:hover {
-	background-color: rgb(255, 255, 255);
+	background: white;
+	background: linear-gradient(90deg, rgba(245, 245, 245, 1) 0%, rgba(255, 255, 255, 1) 70%);
 	box-shadow: 0px 3px 9px -4px rgba(0, 0, 0, 0.25);
+
+	border-color: rgb(240, 240, 240);
+}
+
+.project-card:active {
+	transition: 0s;
+	box-shadow: none;
 }
 
 .project-card img {
@@ -37,4 +50,32 @@
 .signature {
 	margin-left: 20px;
 	opacity: 0.8;
+}
+
+@media screen and (max-width: 1299px) {
+	.main-content {
+		max-width: min(800px, calc(100% - 20px));
+		margin: auto;
+	}
+}
+
+@media screen and (max-width: 649px) {
+	.project-card {
+		flex-flow: column;
+	}
+
+	.project-card img {
+		max-height: max-content;
+	}
+
+	.project-card:hover {
+		background: rgb(255, 255, 255);
+	}
+}
+
+@media not (hover: hover) {
+	.project-card {
+		background: rgb(255, 255, 255);
+		box-shadow: 0px 3px 9px -4px rgba(0, 0, 0, 0.25);
+	}
 }
