@@ -30,7 +30,7 @@ function getProjectData() {
 	}
 }
 
-window.onload = () => {
+window.addEventListener("load", () => {
 	const project = getProjectData();
 	if (project) {
 		document.getElementById("project-title").innerText = project.name;
@@ -39,4 +39,4 @@ window.onload = () => {
 			document.getElementById("project-description").innerHTML = await response.text();
 		});
 	}
-}
+});

@@ -10,7 +10,7 @@ class ProjectCard {
 
 	getHTML() {
 		return `
-		<a href="project-page/project-page.html?project-id=${this.id}">
+		<a href="/project-page/project-page.html?project-id=${this.id}">
 			<div class="project-card">
 				<img src="${this.imageUrl}" alt="Project thumbnail"/>
 				<div>

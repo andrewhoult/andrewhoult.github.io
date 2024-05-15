@@ -5,44 +5,27 @@
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Barlow">
 
 	<link rel="stylesheet" href="/base-style.css">
+	<link rel="stylesheet" href="/project-list/project-list.css">
+
 	<link rel="stylesheet" href="project-page-style.css">
 
 	<script src="project-page-loader.js"></script>
+	<script src="/project-list/project-list-loader.js"></script>
 </head>
 
 <body>
-	<div class="center main-content">
-		<a href="/">&#60;Back</a>
-		<h1 id="project-title"></h1>
-		<div id="project-gallery">
-			<img id="main-image" src="/projects/beat-em-up/images/thumbnail.png">
-			<div id="thumbnails-parent">
-				<div id="image-selector">
-					<svg viewBox="0 0 1 1">
-						<polygon points="-0.5,1 1.5,1 0.5,0" style="fill:white;" />
-					</svg>
-				</div>
-				<div id="thumbnails-child">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-					<img src="/projects/beat-em-up/images/thumbnail.png">
-				</div>
+	<div id="main-content">
+		<div id="project-page">
+			<a id="back-button" href="/">&lt;Back</a>
+			<div id="project-page-inner">
+				<h1 class="title" id="project-title">Project Title</h1>
+				<p id="project-description"></p>
 			</div>
 		</div>
-		<p id="project-description"></p>
+		<div id="projects-list">
+			<div id="projects-list-collab"></div>
+			<div id="projects-list-solo"></div>
+		</div>
 	</div>
 </body>
 
