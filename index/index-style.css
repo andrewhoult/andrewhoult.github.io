@@ -34,3 +34,15 @@
 		margin: auto;
 	}
 }
+
+@media screen and (min-width: 1300px) {
+	.show-mobile {
+		display: none;
+	}
+}
+
+@media screen and (max-width: 1299px) {
+	.hide-mobile {
+		display: none;
+	}
+}
