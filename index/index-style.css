@@ -34,17 +34,3 @@
 		margin: auto;
 	}
 }
-
-@media (max-width: 649px) {
-	.project-card {
-		flex-flow: column;
-	}
-
-	.project-card img {
-		max-height: max-content;
-	}
-
-	.project-card:hover {
-		background: rgb(255, 255, 255);
-	}
-}
