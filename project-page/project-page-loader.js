@@ -1,6 +1,24 @@
 const params = new URLSearchParams(location.search);
 const projectId = params.get("project-id");
 
+document.addEventListener("DOMContentLoaded", () => {
+	const project = getProjectData();
+	if (project) {
+		document.getElementById("project-title").innerText = project.name;
+
+		fetch(project.root + "/description.html").then(async response => {
+			document.getElementById("project-description").innerHTML = await response.text();
+		});
+	}
+});
+
+window.addEventListener("load", () => {
+	const card = document.getElementById(projectId);
+
+	card.scrollIntoView({ block: "nearest" });
+	card.style.background = "white";
+});
+
 class ProjectData {
 	constructor(name, root, imagesURL) {
 		this.name = name;
@@ -29,14 +47,3 @@ function getProjectData() {
 			return new ProjectData("Raytracer", `/projects/${projectId}`, []);
 	}
 }
-
-window.addEventListener("load", () => {
-	const project = getProjectData();
-	if (project) {
-		document.getElementById("project-title").innerText = project.name;
-
-		fetch(project.root + "/description.html").then(async response => {
-			document.getElementById("project-description").innerHTML = await response.text();
-		});
-	}
-});

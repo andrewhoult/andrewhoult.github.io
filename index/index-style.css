@@ -28,14 +28,14 @@
 	bottom: 10%;
 }
 
-@media screen and (max-width: 1299px) {
+@media (max-width: 1299px) {
 	.main-content {
 		max-width: min(800px, calc(100% - 20px));
 		margin: auto;
 	}
 }
 
-@media screen and (max-width: 649px) {
+@media (max-width: 649px) {
 	.project-card {
 		flex-flow: column;
 	}

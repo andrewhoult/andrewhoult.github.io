@@ -32,6 +32,7 @@
 	margin: 10px;
 	max-height: 150px;
 	align-self: center;
+	flex-shrink: 0;
 }
 
 .project-card p,
@@ -41,6 +42,7 @@
 
 .project-card div {
 	margin-top: 10px;
+	flex-grow: 0;
 }
 
 @media not (hover: hover) {

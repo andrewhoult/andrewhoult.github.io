@@ -1,4 +1,4 @@
-window.onload = populateProjects;
+document.addEventListener("DOMContentLoaded", populateProjects);
 
 class ProjectCard {
 	constructor(title, description, id, imageUrl) {
@@ -11,8 +11,8 @@ class ProjectCard {
 	getHTML() {
 		return `
 		<a href="/project-page/project-page.html?project-id=${this.id}">
-			<div class="project-card">
-				<img src="${this.imageUrl}" alt="Project thumbnail"/>
+			<div class="project-card" id="${this.id}">
+				<img src="${this.imageUrl}" alt="Project thumbnail">
 				<div>
 					<strong>${this.title}</strong>
 					<p>${this.description}</p>

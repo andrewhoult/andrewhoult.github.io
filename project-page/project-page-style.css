@@ -27,11 +27,6 @@
 	overflow-y: scroll;
 }
 
-#project-page-inner {
-	width: 75%;
-	margin: auto;
-}
-
 #back-button {
 	position: absolute;
 	left: 50px;
@@ -40,8 +35,57 @@
 
 .project-card img {
 	max-height: 50px;
+	height: 50px;
+	width: 90px;
 }
 
 .title {
 	text-align: center;
+}
+
+#image-gallery>img {
+	width: 100%;
+	padding-top: 56.25%;
+
+	border-style: solid;
+	border-color: lightgray;
+	border-width: 1px;
+}
+
+#gallery-thumbnails {	
+	display: flex;
+	
+	margin-top: 7px;
+	gap: 7px;
+
+	overflow-x: scroll;
+}
+
+#gallery-thumbnails img {
+	width: 128px;
+	height: 72px;
+
+	flex-shrink: 0;
+}
+
+@media (min-width: 800px) {
+	#project-description {
+		margin: auto;
+		width: 60%;
+	}
+
+	#image-gallery {
+		width: 60%;
+		margin: auto;
+	}
+}
+
+@media (max-width: 799px) {
+	#project-description {
+		margin: 20px;
+	}
+
+	#image-gallery {
+		margin: 20px;
+	}
 }
