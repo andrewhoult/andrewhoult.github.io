@@ -9,6 +9,10 @@ document.addEventListener("DOMContentLoaded", () => {
 		fetch(project.root + "/description.html").then(async response => {
 			document.getElementById("project-description").innerHTML = await response.text();
 		});
+
+		project.imagesURL.forEach(url => {
+			addImage(project.root + "/" + url);
+		});
 	}
 });
 
@@ -30,7 +34,7 @@ class ProjectData {
 function getProjectData() {
 	switch (projectId) {
 		case "beat-em-up":
-			return new ProjectData("BEAT 'Em Up", `/projects/${projectId}`, []);
+			return new ProjectData("BEAT 'Em Up", `/projects/${projectId}`, ["images/thumbnail.png", "images/thumbnail.png", "images/thumbnail.png"]);
 		case "news":
 			return new ProjectData("Faking News", `/projects/${projectId}`, []);
 		case "snow":
