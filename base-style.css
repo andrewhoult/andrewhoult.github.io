@@ -16,8 +16,8 @@ h1 {
 
 hr {
 	border-width: 1px;
-	border-color: rgb(235, 235, 235);
-	border-style: outset none;
+	border-color: lightgray;
+	border-style: solid;
 }
 
 p {
