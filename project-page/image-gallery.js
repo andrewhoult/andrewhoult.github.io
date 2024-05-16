@@ -74,7 +74,7 @@ class Gallery extends HTMLElement {
 
 	imgClick(img) {
 		this.mainImg.src = img.src;
-		img.scrollIntoView({ behavior: "smooth", inline: "center" });
+		img.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
 
 		if (this.selectedImage) {
 			this.selectedImage.className = "";

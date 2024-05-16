@@ -1,0 +1,43 @@
+gallery-viewer>img {
+	width: 100%;
+	min-height: 50px;
+
+	border-style: solid;
+	border-color: lightgray;
+	border-width: 1px;
+}
+
+gallery-viewer>video {
+	width: 100%;
+
+	border-style: solid;
+	border-color: lightgray;
+	border-width: 1px;
+}
+
+.gallery-thumbnails {
+	display: flex;
+
+	padding: 7px;
+	gap: 7px;
+
+	overflow-x: scroll;
+
+}
+
+.gallery-thumbnails img {
+	width: 128px;
+	height: 72px;
+
+	flex-shrink: 0;
+
+	box-sizing: border-box;
+}
+
+.gallery-thumbnails img.selected {
+	border-style: solid;
+	border-color: white;
+	border-width: 2px;
+
+	box-shadow: 0px 1px 3px 2px rgba(0, 0, 0, 0.4);
+}

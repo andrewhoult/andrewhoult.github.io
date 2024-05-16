@@ -57,6 +57,8 @@
 	.project-card {
 		flex-flow: column;
 		padding: 0px;
+
+		overflow: hidden;
 	}
 
 	.project-card img {
