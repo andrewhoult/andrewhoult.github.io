@@ -89,5 +89,7 @@ class GalleryMedia extends HTMLElement {
 
 }
 
-customElements.define("gallery-viewer", Gallery);
-customElements.define("gallery-media", GalleryMedia);
+document.addEventListener("DOMContentLoaded", () => {
+	customElements.define("gallery-viewer", Gallery);
+	customElements.define("gallery-media", GalleryMedia);
+});
