@@ -27,7 +27,7 @@ function populateProjects() {
 	const collabCards = [
 		new ProjectCard(
 			"BEAT 'Em Up",
-			"A rythm-based beat 'em up. Fight rival musically themed gangs to reclaim you turf in Funky Town. Made as a semester long project with a group of 5.",
+			"A rythm-based beat 'em up. Fight rival musically-themed gangs to reclaim you turf in Funky Town. Made as a semester long project in a group of 5.",
 			"beat-em-up",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/beat-em-up/images/thumbnail.png",
 		),
