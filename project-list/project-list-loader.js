@@ -41,7 +41,7 @@ function populateProjects() {
 		),
 		new ProjectCard(
 			"Obscurum",
-			"A sound intensive horror game where you can only see by using your trusty poking stick. Made during a 4 day game jam with a group of 5.",
+			"A sound-focused horror game where you can only feel your way around using your trusty poking stick.",
 			"obscurum",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/sound/images/thumbnail.png",
 		),
