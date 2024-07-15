@@ -1,18 +1,30 @@
-gallery-viewer>img {
+.gallery-display {
 	width: 100%;
-	min-height: 50px;
+	height: 0;
+
+	padding-bottom: 56.25%;
+
+	position: relative;
 
 	border-style: solid;
 	border-color: lightgray;
 	border-width: 1px;
+
+	background-color: black;
 }
 
-gallery-viewer>video {
+.gallery-display img {
 	width: 100%;
+	height: 100%;
+	position: absolute;
 
-	border-style: solid;
-	border-color: lightgray;
-	border-width: 1px;
+	object-fit: contain;
+}
+
+.gallery-display iframe {
+	width: 100%;
+	height: 100%;
+	position: absolute;
 }
 
 .gallery-thumbnails {
@@ -22,7 +34,6 @@ gallery-viewer>video {
 	gap: 7px;
 
 	overflow-x: scroll;
-
 }
 
 .gallery-thumbnails img {
@@ -32,6 +43,13 @@ gallery-viewer>video {
 	flex-shrink: 0;
 
 	box-sizing: border-box;
+	object-fit: cover;
+}
+
+.gallery-thumbnails img:hover {
+	border-style: solid;
+	border-color: white;
+	border-width: 1px;
 }
 
 .gallery-thumbnails img.selected {

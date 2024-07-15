@@ -13,17 +13,31 @@ class Gallery extends HTMLElement {
 	}
 
 	connectedCallback() {
+		// create big image and youtube video elements
+		const mainDiv = document.createElement("div");
 		const mainImg = document.createElement("img");
-		const mainVid = document.createElement("video");
+		const ytEmbed = document.createElement("iframe");
 
-		mainVid.style.display = "none";
+		// style them
+		mainImg.style.display = "none";
+		ytEmbed.style.display = "none";
+		ytEmbed.setAttribute("frameborder", 0);
+		ytEmbed.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+		ytEmbed.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+		ytEmbed.allowFullscreen = true;
 
-		this.appendChild(mainImg);
+		// add them to DOM
+		this.appendChild(mainDiv);
+		this.mainDiv = mainDiv;
+		this.mainDiv.className = "gallery-display"
+
+		mainDiv.appendChild(mainImg);
 		this.mainImg = mainImg;
 
-		this.appendChild(mainVid);
-		this.mainVid = mainVid;
+		mainDiv.appendChild(ytEmbed);
+		this.mainVid = ytEmbed;
 
+		// create thumbnails
 		const thumbnails = document.createElement("div");
 		thumbnails.className = "gallery-thumbnails";
 
@@ -39,6 +53,10 @@ class Gallery extends HTMLElement {
 			switch (media.getAttribute("type")) {
 				case "image":
 					this.addImage(media.getAttribute("src"));
+					break;
+
+				case "youtube":
+					this.addYoutube(media.getAttribute("src"));
 					break;
 
 				default:
@@ -59,22 +77,53 @@ class Gallery extends HTMLElement {
 		console.error("Attribute updated not implemented yet!");
 	}
 
+	// add an image to the gallery
 	addImage(url) {
 		const img = document.createElement("img");
 		img.src = url;
 
 		this.thumbnails.appendChild(img);
 
-		if (!this.mainImg.src) {
-			this.imgClick(img);
+		if (!this.mainImg.src && !this.mainVid.src) {
+			this.imgClick(img, url, "image", true);
 		}
 
-		img.onclick = () => { this.imgClick(img) };
+		img.onclick = () => { this.imgClick(img, url, "image") };
 	}
 
-	imgClick(img) {
-		this.mainImg.src = img.src;
-		img.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+	// add a youtube video to the gallery
+	addYoutube(url) {
+		const img = document.createElement("img");
+		img.src = `http://i3.ytimg.com/vi/${url}/hqdefault.jpg`;
+
+		this.thumbnails.appendChild(img);
+
+		if (!this.mainImg.src && !this.mainVid.src) {
+			this.imgClick(img, url, "youtube", true);
+		}
+
+		img.onclick = () => { this.imgClick(img, url, "youtube") };
+	}
+
+	// called when a thumbnail is clicked
+	imgClick(img, url, type, dontScroll) {
+		this.mainImg.style.display = "none";
+		this.mainVid.style.display = "none";
+
+		// stop youtube video if playing
+		var iframeSrc = this.mainVid.src;
+		this.mainVid.src = iframeSrc;
+
+		if (type == "image") {
+			this.mainImg.src = url;
+			this.mainImg.style.display = "block";
+		} else if (type == "youtube") {
+			this.mainVid.src = `https://www.youtube.com/embed/${url}?si=VFHY-VUWjMgN1XSx`;
+			this.mainVid.style.display = "block";
+		}
+
+		if (!dontScroll)
+			img.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
 
 		if (this.selectedImage) {
 			this.selectedImage.className = "";

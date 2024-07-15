@@ -11,11 +11,13 @@ class ProjectCard {
 	getHTML() {
 		return `
 		<a href="/project-page/project-page.html?project-id=${this.id}">
-			<div class="project-card" id="${this.id}">
-				<img src="${this.imageUrl}" alt="Project thumbnail">
-				<div>
-					<strong>${this.title}</strong>
-					<p>${this.description}</p>
+			<div class="project-card-container">
+				<div class="project-card" id="${this.id}">
+					<img src="${this.imageUrl}" alt="Project thumbnail">
+					<div>
+						<strong>${this.title}</strong>
+						<p>${this.description}</p>
+					</div>
 				</div>
 			</div>
 		</a>

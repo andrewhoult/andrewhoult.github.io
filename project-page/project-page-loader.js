@@ -16,7 +16,7 @@ window.addEventListener("load", () => {
 	const card = document.getElementById(projectId);
 
 	card.scrollIntoView({ block: "nearest" });
-	card.style.background = "white";
+	card.classList.add("active-project");
 });
 
 class ProjectData {
