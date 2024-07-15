@@ -29,13 +29,13 @@ function populateProjects() {
 	const collabCards = [
 		new ProjectCard(
 			"BEAT 'Em Up",
-			"A rythm-based beat 'em up. Fight rival musically-themed gangs to reclaim you turf in Funky Town. Made as a semester long project in a group of 5.",
+			"A rythm-based beat 'em up. Fight rival musically-themed gangs to reclaim you turf in Funky Town.",
 			"beat-em-up",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/beat-em-up/images/thumbnail.png",
 		),
 		new ProjectCard(
 			"Ice To Beat You",
-			"A mix of physical and digital. Battle it out in a snowball fight against the neighborhood hooligans using real fake snowballs! Made during a 4 day game jame with a group of 6.",
+			"This game is a unique mix of physical and digital. Battle it out in a legendary snowball fight against the neighborhood hooligans. With real fake snowballs!",
 			"snow",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/snow/images/thumbnail.png",
 		),
