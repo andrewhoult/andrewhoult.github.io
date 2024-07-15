@@ -43,7 +43,7 @@ function populateProjects() {
 			"Obscurum",
 			"A sound-focused horror game where you can only feel your way around using your trusty poking stick.",
 			"obscurum",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/sound/images/thumbnail.png",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/obscurum/images/thumbnail.png",
 		),
 		new ProjectCard(
 			"Faking News",
