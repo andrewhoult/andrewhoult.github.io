@@ -45,18 +45,18 @@ function populateProjects() {
 			"obscurum",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/obscurum/images/thumbnail.png",
 		),
-		new ProjectCard(
-			"Faking News",
-			"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
-			"news",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/thumbnail.png",
-		),
-		new ProjectCard(
-			"O2",
-			"Delve into the depth of a mysterious planet, but make sure to manage your limited oxygen. Made during a 48 hour game jam with a group of 3.",
-			"o2",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/o2/images/thumbnail.png",
-		),
+		// new ProjectCard(
+		// 	"Faking News",
+		// 	"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
+		// 	"news",
+		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/thumbnail.png",
+		// ),
+		// new ProjectCard(
+		// 	"O2",
+		// 	"Delve into the depth of a mysterious planet, but make sure to manage your limited oxygen. Made during a 48 hour game jam with a group of 3.",
+		// 	"o2",
+		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/o2/images/thumbnail.png",
+		// ),
 	];
 
 	const soloCards = [
@@ -85,7 +85,10 @@ function populateProjects() {
 }
 
 function addCards(cards, id) {
-	cards.forEach(card => {
-		document.getElementById(id).innerHTML += card.getHTML();
-	});
+	let parent = document.getElementById(id);
+	if (parent) {
+		cards.forEach(card => {
+			parent.innerHTML += card.getHTML();
+		});
+	}
 }

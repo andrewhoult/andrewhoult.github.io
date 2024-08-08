@@ -40,14 +40,22 @@ a {
 	color: rgb(19, 23, 32);
 }
 
-.link {
+.fancy-link {
 	font-weight: 450;
 	font-size: 1.2em;
 	transition: 0.1s;
 }
 
-.link:hover {
+.fancy-link:hover {
 	text-decoration: underline;
+}
+
+.link {
+	color: blue;
+	text-decoration: underline;
+}
+
+.fancy-link:hover {
 	padding-left: 5px;
 }
 
