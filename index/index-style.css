@@ -1,6 +1,7 @@
 .main-content {
 	max-width: min(800px, calc(100% - 20px));
 	margin: 100px auto;
+	padding-bottom: 20px;
 }
 
 .signature {
