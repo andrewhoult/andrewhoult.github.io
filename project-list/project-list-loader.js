@@ -64,20 +64,20 @@ function populateProjects() {
 			"WebGL Based Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
-			"projects/web3d/images/thumbnail.png",
+			"projects/webgl/images/thumbnail.png",
 		),
-		new ProjectCard(
-			"Raytracer",
-			"A simple realtime raytracing engine.",
-			"raytrace",
-			"projects/raytrace/images/thumbnail.png",
-		),
-		new ProjectCard(
-			"3D Physics",
-			"A simple 3D physics engine.",
-			"physics",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
-		),
+		// new ProjectCard(
+		// 	"Raytracer",
+		// 	"A simple realtime raytracing engine.",
+		// 	"raytrace",
+		// 	"projects/raytrace/images/thumbnail.png",
+		// ),
+		// new ProjectCard(
+		// 	"3D Physics",
+		// 	"A simple 3D physics engine.",
+		// 	"physics",
+		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
+		// ),
 	];
 
 	addCards(collabCards, "projects-list-collab");

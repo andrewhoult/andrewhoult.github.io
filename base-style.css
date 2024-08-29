@@ -38,6 +38,8 @@ ul * {
 a {
 	text-decoration: none;
 	color: rgb(19, 23, 32);
+	font-weight: 550;
+	font-size: 1em;
 }
 
 .fancy-link {
@@ -48,19 +50,21 @@ a {
 
 .fancy-link:hover {
 	text-decoration: underline;
-}
-
-.link {
-	color: blue;
-	text-decoration: underline;
-}
-
-.fancy-link:hover {
 	padding-left: 5px;
 }
 
+.link {
+	color: rgb(93, 93, 93);
+	text-decoration: underline;
+	transition: 0.1s;
+}
+
+.link:hover {
+	color: rgb(0, 0, 0);
+}
+
 p {
-	color: rgb(91, 91, 91);
+	color: rgb(38, 38, 38);
 	font-family: "Roboto";
 	font-weight: 550;
 	font-size: 1em;
@@ -104,4 +108,12 @@ strong {
 .icon {
 	width: 100px;
 	padding: 10px;
+}
+
+footer {
+	background-color: rgb(0, 0, 0);
+	width: 100%;
+	padding: 0;
+	margin: 0;
+	height: 50px;
 }
