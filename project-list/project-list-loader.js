@@ -66,12 +66,12 @@ function populateProjects() {
 			"webgl",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/webgl/images/thumbnail.png",
 		),
-		// new ProjectCard(
-		// 	"Raytracer",
-		// 	"A simple realtime raytracing engine.",
-		// 	"raytrace",
-		// 	"projects/raytrace/images/thumbnail.png",
-		// ),
+		new ProjectCard(
+			"Raytracer",
+			"A simple realtime raytracing engine.",
+			"raytrace",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/raytrace/images/thumbnail.png",
+		),
 		// new ProjectCard(
 		// 	"3D Physics",
 		// 	"A simple 3D physics engine.",
