@@ -64,7 +64,7 @@ function populateProjects() {
 			"WebGL Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/mainprojects/webgl/images/thumbnail.png",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/webgl/images/thumbnail.png",
 		),
 		// new ProjectCard(
 		// 	"Raytracer",
