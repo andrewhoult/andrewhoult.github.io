@@ -2,6 +2,7 @@ html {
 	font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	font-style: normal;
 	font-size: 1.1em;
+	scrollbar-color: rgb(146, 146, 146) rgb(58, 58, 58);
 }
 
 body {
@@ -27,17 +28,13 @@ hr {
 	border-style: solid;
 }
 
-ul {
-	list-style-type: none;
-}
-
 ul * {
 	margin-top: 5px;
 }
 
 a {
 	text-decoration: none;
-	color: #f2e3cc;
+	color: #f6e4d1;
 	font-weight: 550;
 	font-size: 1em;
 }
@@ -46,11 +43,13 @@ a {
 	font-weight: 450;
 	font-size: 1.2em;
 	transition: 0.1s;
+	color: #f6e4d1;
 }
 
 .fancy-link:hover {
 	text-decoration: underline;
 	padding-left: 5px;
+	color: #f6e4d1;
 }
 
 .link {
@@ -68,6 +67,7 @@ p {
 	font-family: "Roboto";
 	font-weight: 550;
 	font-size: 1em;
+	text-decoration: none;
 }
 
 strong {
@@ -77,20 +77,16 @@ strong {
 
 .social-icon>img {
 	width: 45px;
+	transition: 0.2s;
 }
 
 .social-icon>img:hover {
-	transition: 0.2s;
 	opacity: 0.75;
-}
-
-.social-icon>img:not(:hover) {
-	transition: 0.2s;
 }
 
 .social-icon {
 	text-decoration: none;
-	margin: 1px;
+	margin: 5px;
 }
 
 .title {

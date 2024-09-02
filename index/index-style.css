@@ -18,6 +18,10 @@
 	align-self: start;
 }
 
+ul {
+	list-style-type: none;
+}
+
 @media not screen {
 	.sidebar {
 		display: none;

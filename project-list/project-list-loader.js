@@ -61,7 +61,7 @@ function populateProjects() {
 
 	const soloCards = [
 		new ProjectCard(
-			"WebGL Based Engine",
+			"WebGL Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
 			"projects/webgl/images/thumbnail.png",

@@ -39,7 +39,7 @@ function getProjectData() {
 		case "o2":
 			return new ProjectData("O2", projectId);
 		case "webgl":
-			return new ProjectData("WebGL Based Engine", projectId);
+			return new ProjectData("WebGL Engine", projectId);
 		case "physics":
 			return new ProjectData("3D Physics", projectId);
 		case "raytrace":
