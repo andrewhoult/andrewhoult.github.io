@@ -10,12 +10,21 @@
 }
 
 .sidebar {
-	position: sticky;
 	margin: 0 0 0 10%;
 	top: 20px;
 	height: 100%;
 	left: 0;
 	align-self: start;
+	width: 350px;
+}
+
+.inner-sidebar {
+	position: fixed;
+	height: 100%;
+}
+
+ul {
+	list-style-type: none;
 }
 
 @media not screen {
@@ -25,8 +34,8 @@
 }
 
 .footer {
-	position: sticky;
-	bottom: 10%;
+	position: fixed;
+	bottom: 25vh;
 }
 
 @media (max-width: 1299px) {
@@ -36,7 +45,7 @@
 	}
 }
 
-@media screen and (min-width: 1300px) {
+@media screen and (min-width: 1299px) {
 	.show-mobile {
 		display: none;
 	}
