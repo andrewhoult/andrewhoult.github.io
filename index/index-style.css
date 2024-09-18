@@ -29,7 +29,7 @@ ul {
 }
 
 .footer {
-	position: fixed;
+	position: sticky;
 	bottom: 10%;
 }
 
