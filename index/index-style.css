@@ -39,7 +39,7 @@ ul {
 
 .footer {
 	position: fixed;
-	bottom: 25vh;
+	bottom: 20vh;
 }
 
 @media (max-width: 1299px) {
