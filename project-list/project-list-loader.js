@@ -28,17 +28,17 @@ class ProjectCard {
 function populateProjects() {
 	const longCards = [
 		new ProjectCard(
+			"Shadows Beneath the Dust",
+			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines. [Ongoing development!]",
+			"spaghetti",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/spaghetti/images/thumbnail.png",
+		),
+		new ProjectCard(
 			"BEAT 'Em Up",
 			"A rythm-based beat 'em up. Fight rival musically-themed gangs to reclaim you turf in Funky Town.",
 			"beat-em-up",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/beat-em-up/images/thumbnail.png",
 		),
-		new ProjectCard(
-			"Shadows Beneath the Dust",
-			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines.",
-			"spaghetti",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/spaghetti/images/thumbnail.png",
-		)
 	];
 
 	const jamCards = [
