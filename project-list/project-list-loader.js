@@ -35,7 +35,7 @@ function populateProjects() {
 		),
 		new ProjectCard(
 			"Shadows Beneath the Dust",
-			"A Lethal Company inspired 4 player co-op game. Take the scraps from long abandoned mines as ancient spirits chase you down.",
+			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines.",
 			"spaghetti",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/spaghetti/images/thumbnail.png",
 		)
