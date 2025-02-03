@@ -23,11 +23,7 @@
 	height: 100%;
 }
 
-ul {
-	list-style-type: none;
-}
-
-ul {
+.no-style {
 	list-style-type: none;
 }
 
@@ -39,7 +35,7 @@ ul {
 
 .footer {
 	position: fixed;
-	bottom: 20vh;
+	bottom: 10vh;
 }
 
 @media (max-width: 1299px) {

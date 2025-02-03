@@ -5,6 +5,10 @@ html {
 	scrollbar-color: rgb(146, 146, 146) rgb(58, 58, 58);
 }
 
+.big-div {
+	display: flex;
+}
+
 body {
 	background-color: #1b1d1e;
 	color: #f2e3cc;
@@ -81,7 +85,7 @@ strong {
 }
 
 .social-icon>img:hover {
-	opacity: 0.75;
+	opacity: 0.65;
 }
 
 .social-icon {

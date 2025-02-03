@@ -9,28 +9,39 @@
 	were tasked with creating a game using an alternative/unique control scheme. In our game, you can throw paper
 	snowballs 3 home-made targets. You can also physically duck behind cover, which is detected using an ultrasonic
 	sensor. The various inputs are sent to Unity through an Arduino and read in-game.</p>
+<ul>
+	<li>Development time: 4 days</li>
+	<li>Group size: 6</li>
+	<li>Date: 2022</li>
+</ul>
 <h1>Tools Used</h1>
 <p>We used Unity to create this game, as well as a Makey Makey to easily translate input from the targets into
 	keypresses. We also used and Arduino to measure input using an ultrasonic distance sensor, and send that to the
 	computer via USB.</p>
-<img class="icon" src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/unity.png">
-<img class="icon" src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/makey.png">
-<img class="icon" src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/mvoxel.png">
-<img class="icon" src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/arduino.png">
+<img alt="Unity logo" class="icon"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/unity.png">
+<img alt="Makey Makey logo" class="icon"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/makey.png">
+<img alt="MagicaVoxel logo" class="icon"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/mvoxel.png">
+<img alt="Arduino logo" class="icon"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/arduino.png">
 <h1>Development</h1>
 
 <p>Development over the 4 day period went fairly smoothly. The first day was spent mostly coming up with an idea,
 	setting up a git repo, and assigning roles. The idea was fairly simple, and everyone knew exactly what had to be
 	done and who was doing it. I was responsible for programming, animation, and partially for sound design.</p>
 
-<img src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/snow/images/thumbnail.png">
+<img alt="Game screenshot"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/snow/images/thumbnail.png">
 
 <p>One major challenge that I faced during development was the signal from the distance sensor. It was very noisy and
 	innacurate, making it pretty difficult to tell if someone was ducking or not. This wasn't helped by the fact we
 	presented the game in a busy space with lots of people passing by in front of the sensor. I had to smooth out the
 	signal and dynamically calibrate what distanced looked like ducking and standing.</p>
 
-<img src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/snow/images/not-my-photo-but-the-same-sensor.jpg">
+<img alt="Arduino distance sensor"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/snow/images/not-my-photo-but-the-same-sensor.jpg">
 
 <p>We also had some problems with the targets. They were made by hanging two sheets of tinfoil next to eachother so that
 	an impact would cause them to touch and complete the circuit. But the current wasn't strong enough to pass through a

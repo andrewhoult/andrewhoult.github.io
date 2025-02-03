@@ -30,7 +30,7 @@ function getProjectData() {
 	switch (projectId) {
 		case "beat-em-up":
 			return new ProjectData("BEAT 'Em Up", projectId);
-		case "news":
+		case "faking-news":
 			return new ProjectData("Faking News", projectId);
 		case "snow":
 			return new ProjectData("Ice To Beat You", projectId);
@@ -44,5 +44,7 @@ function getProjectData() {
 			return new ProjectData("3D Physics", projectId);
 		case "raytrace":
 			return new ProjectData("Raytracer", projectId);
+		case "spaghetti":
+			return new ProjectData("Shadows Beneath the Dust", projectId);
 	}
 }

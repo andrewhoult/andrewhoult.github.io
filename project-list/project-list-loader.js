@@ -26,13 +26,22 @@ class ProjectCard {
 }
 
 function populateProjects() {
-	const collabCards = [
+	const longCards = [
 		new ProjectCard(
 			"BEAT 'Em Up",
 			"A rythm-based beat 'em up. Fight rival musically-themed gangs to reclaim you turf in Funky Town.",
 			"beat-em-up",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/beat-em-up/images/thumbnail.png",
 		),
+		new ProjectCard(
+			"Shadows Beneath the Dust",
+			"A Lethal Company inspired 4 player co-op game. Take the scraps from long abandoned mines as ancient spirits chase you down.",
+			"spaghetti",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/spaghetti/images/thumbnail.png",
+		)
+	];
+
+	const jamCards = [
 		new ProjectCard(
 			"Ice To Beat You",
 			"This game is a unique mix of physical and digital. Battle it out in a legendary snowball fight against the neighborhood hooligans. With real fake snowballs!",
@@ -45,18 +54,18 @@ function populateProjects() {
 			"obscurum",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/obscurum/images/thumbnail.png",
 		),
-		// new ProjectCard(
-		// 	"Faking News",
-		// 	"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
-		// 	"news",
-		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/thumbnail.png",
-		// ),
-		// new ProjectCard(
-		// 	"O2",
-		// 	"Delve into the depth of a mysterious planet, but make sure to manage your limited oxygen. Made during a 48 hour game jam with a group of 3.",
-		// 	"o2",
-		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/o2/images/thumbnail.png",
-		// ),
+		new ProjectCard(
+			"Faking News",
+			"Make up headlines, find photos for the cover, and broadcast your stories to your friends. The result of a 48 hour game jam with a group of 5.",
+			"faking-news",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/thumbnail.png",
+		),
+		new ProjectCard(
+			"O2",
+			"Delve into the depth of a mysterious planet, but make sure to manage your limited oxygen. Made during a 48 hour game jam with a group of 3.",
+			"o2",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/o2/images/thumbnail.png",
+		),
 	];
 
 	const soloCards = [
@@ -72,15 +81,16 @@ function populateProjects() {
 			"raytrace",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/raytrace/images/thumbnail.png",
 		),
-		// new ProjectCard(
-		// 	"3D Physics",
-		// 	"A simple 3D physics engine.",
-		// 	"physics",
-		// 	"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
-		// ),
+		new ProjectCard(
+			"3D Physics",
+			"A simple 3D physics engine.",
+			"physics",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
+		),
 	];
 
-	addCards(collabCards, "projects-list-collab");
+	addCards(longCards, "projects-list-long");
+	addCards(jamCards, "projects-list-jam");
 	addCards(soloCards, "projects-list-solo");
 }
 

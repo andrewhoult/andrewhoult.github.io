@@ -23,23 +23,27 @@
 
 <body>
 	<!-- Flex everything!! -->
-	<div style="display: flex;">
+	<div class="big-div">
 
 		<!-- Sidebar -->
 		<div class="hide-mobile sidebar">
 			<div class="inner-sidebar">
 				<h1 class="title">Andrew Hoult</h1>
-				<ul>
+				<ul class="no-style">
 					<li><a class="fancy-link" href="#about">– About</a></li>
-					<li><a class="fancy-link" href="#projects">– Projects</a></li>
 					<li><a class="fancy-link" href="#contact">– Contact</a></li>
+					<li><a class="fancy-link" href="#projects">– Projects</a></li>
 				</ul>
 				<span class="footer">
-					<a class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/" target="_blank">
+					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/"
+						target="_blank">
 						<img src="images/logos/linkedin.svg" alt="My LinkedIn">
 					</a>
-					<a class="social-icon" href="https://github.com/andrewhoult" target="_blank">
+					<a rel="noopener" class="social-icon" href="https://github.com/andrewhoult" target="_blank">
 						<img src="images/logos/github.svg" alt="My GitHub">
+					</a>
+					<a rel="noopener" class="social-icon" href="https://itch.io/profile/mrrobottrax" target="_blank">
+						<img src="images/logos/itch.svg" alt="My Itch">
 					</a>
 				</span>
 			</div>
@@ -54,53 +58,54 @@
 				<h1>About</h1>
 				<hr>
 				<p>
-					Hi, I'm Andrew Hoult, a <span id="my-current-year">second</span> year Game Development student at
-					Ontario Tech.
+					Hi, I'm Andrew Hoult, a Game Development student at Ontario Tech University.
+					I'm passionate about every aspect of game dev, and am always excited to learn more.
 				</p>
-				<p>
-					I started game development all the way back in 2013 with Scratch, and since then I've moved on to
-					bigger engines like Unity and Unreal.
-					Recently, I've started creating my own engines from scratch in C++, and have learned so much from
-					doing so.
-				</p>
-				<p>
-					I also like to do music and sound design, some 3D modelling, a little bit of 2D art, and of course
-					design games.
-				</p>
-				<strong>Thank you for checking out my portfolio!</strong>
-				<p class="signature"> - Andrew Hoult</p>
+				<h2>Skills</h2>
+				<ul>
+					<li>Programming in C++, C#, Javascript</li>
+					<li>Communication</li>
+					<li>Design</li>
+					<li>Lots of experience with Unity</li>
+					<li>Some experience with Unreal</li>
+				</ul>
 				<!-- Mobile social links -->
 				<span class="show-mobile">
 					<br><br>
-					<a class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/" target="_blank">
+					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/"
+						target="_blank">
 						<img src="images/logos/linkedin.svg" alt="My LinkedIn">
 					</a>
-					<a class="social-icon" href="https://github.com/andrewhoult" target="_blank">
+					<a rel="noopener" class="social-icon" href="https://github.com/andrewhoult" target="_blank">
 						<img src="images/logos/github.svg" alt="My GitHub">
 					</a>
+					<a rel="noopener" class="social-icon" href="https://itch.io/profile/mrrobottrax" target="_blank">
+						<img src="images/logos/itch.svg" alt="My Itch">
+					</a>
 				</span>
-			</div>
-
-			<!-- Projects list populated at runtime -->
-			<div id="projects">
-				<h1>Projects</h1>
-				<hr>
-				<h2>Collaborative</h2>
-				<div id="projects-list-collab"></div>
-				<h2>Solo</h2>
-				<div id="projects-list-solo"></div>
+				<br>
 			</div>
 
 			<!-- Contact Info -->
 			<div id="contact">
 				<h1>Contact</h1>
-				<hr><br>
+				<hr>
 				<p>Feel free to email me at:</p>
 				<a class="link" href="mailto: andrewjhoult@gmail.com">andrewjhoult@gmail.com</a>
-				<br><br>
-				<p>Or check out my (pretty bland) LinkedIn:</p>
-				<a class="link" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/"
-					target="_blank">https://www.linkedin.com/in/andrew-hoult-9981aa29b/</a>
+				<br>
+			</div>
+
+			<!-- Projects list populated at runtime -->
+			<div id="projects">
+				<br>
+				<h1>Projects</h1>
+				<hr>
+				<h2>Long Term</h2>
+				<div id="projects-list-long"></div>
+				<h2>Game Jams</h2>
+				<div id="projects-list-jam"></div>
+				<h2>Solo Engineless Demos</h2>
+				<div id="projects-list-solo"></div>
 			</div>
 		</div>
 	</div>

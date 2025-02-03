@@ -1,0 +1,35 @@
+<gallery-viewer>
+	<gallery-media type="image"
+		src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/thumbnail.png"></gallery-media>
+	<gallery-media type="image"
+		src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/faking-news/images/01.png"></gallery-media>
+</gallery-viewer>
+<br>
+<p>This game was made during a 48 hour game jam. Players connect using peer to peer to make up headlines and pick photos
+	in this Jackbox inspired game.</p>
+
+<a rel="noopener" class="social-icon itch-text" href="https://armored-legend.itch.io/ggj-faking-news" target="_blank">
+	<img src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/itch-text.svg"
+		alt="Itch link">
+</a>
+<p>(itch link provided, but by now I have no idea if the servers are still working)</p>
+<ul>
+	<li>Development time: 48 hours</li>
+	<li>Group size: 3</li>
+	<li>Date: 2023</li>
+</ul>
+
+<h1>Tools Used</h1>
+<p>Unity as the game engine, and Node JS to create the server used to connect players via lobbies.</p>
+<img class="icon"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/images/logos/unity.png">
+
+<ul>
+	<li>Node JS</li>
+</ul>
+
+<h1>Development</h1>
+
+<p>Creating a peer to peer networking solution in 48 hours was a nightmare, and we had to cut a lot of the features we
+	originally envisioned such as voice chat and streamed cameras (but it was close!).</p>
+<p>A Node JS server keeps track of lobbies and generates room codes. After that, players are connected p2p.</p>
