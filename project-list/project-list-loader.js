@@ -70,6 +70,12 @@ function populateProjects() {
 
 	const soloCards = [
 		new ProjectCard(
+			"2D Platformer",
+			"A really simple 2D platformer written in Vulkan, written completely from scratch with only the Vulkan and Windows SDKs.",
+			"platformer",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/platformer/images/thumbnail.png",
+		),
+		new ProjectCard(
 			"WebGL Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
