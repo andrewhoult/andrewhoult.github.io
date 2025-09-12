@@ -30,6 +30,8 @@ function getProjectData() {
 	switch (projectId) {
 		case "beat-em-up":
 			return new ProjectData("BEAT 'Em Up", projectId);
+		case "platformer":
+			return new ProjectData("Platformer", projectId);
 		case "faking-news":
 			return new ProjectData("Faking News", projectId);
 		case "snow":
