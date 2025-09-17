@@ -66,7 +66,10 @@
 
 	.project-card img {
 		max-height: 100%;
+		max-width: 100%;
 		margin: 0px;
+		height: initial;
+		width: initial;
 	}
 
 	.project-card-container:hover .project-card {
