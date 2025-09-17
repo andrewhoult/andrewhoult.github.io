@@ -29,7 +29,7 @@ function populateProjects() {
 	const longCards = [
 		new ProjectCard(
 			"Shadows Beneath the Dust",
-			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines. [Ongoing development!]",
+			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines.",
 			"spaghetti",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/spaghetti/images/thumbnail.png",
 		),
@@ -82,8 +82,8 @@ function populateProjects() {
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/webgl/images/thumbnail.png",
 		),
 		new ProjectCard(
-			"Raytracer",
-			"A simple realtime raytracing engine.",
+			"Raytraced Minecraft",
+			"A simple realtime raytracing engine using textures from Minecraft.",
 			"raytrace",
 			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/raytrace/images/thumbnail.png",
 		),
@@ -91,7 +91,7 @@ function populateProjects() {
 			"3D Physics",
 			"A simple 3D physics engine.",
 			"physics",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.webp",
 		),
 	];
 

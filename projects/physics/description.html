@@ -1,9 +1,43 @@
-<img
-	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.png" alt="Image of a simple convex hull rigidbody physics engine.">
+<gallery-viewer>
+	<gallery-media type="image"
+		src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/thumbnail.webp"></gallery-media>
+	<gallery-media type="image"
+		src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/editor1.png"></gallery-media>
+	<gallery-media type="image"
+		src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/editor.png"></gallery-media>
+</gallery-viewer>
+
+<p>This is the first custom engine I ever attempted to make. I tried a lot of stuff out, but most of it never went
+	anywhere. It has the start of a job-oriented ECS system, but it was unfinished. There are no textures or sounds. It
+	uses GLFW to manage the window and HID input and Dear ImGUI for the UI. It rendered using OpenGL and GLAD. In my
+	subsequent engines I would mostly use the Win32 API instead of
+	third party libraries.</p>
+
+<p>The physics part was the main focus. The physics engine was entirely custom. Convex meshes would be generated using
+	quickhull, then an optimized Seperating Axis Test would be used for collision detection. There was no broadphase. It
+	used a few techniques in collision resolution such as persistent contact points.
+</p>
 
 <ul>
-	<li>Date: 2021</li>
+	<li>Date: 2020</li>
 </ul>
 
-<p>Simple rigidbody physics engine. Uses quickhull to generate convex mesh, and an optimized seperating axis text for
-	collision detection. Also includes a simple map editor (only supports boxes).</p>
+<p>Features:</p>
+<ul>
+	<li>Kind of an ECS based, cache-friendly memory management system</li>
+	<li>GLTF mesh loading</li>
+	<li>Console/binding based input system</li>
+	<li>Rigidbody physics</li>
+</ul>
+
+<p>Limitations:</p>
+<ul>
+	<li>No sound or textures</li>
+	<li>No inertia tensor calculation (I couldn't figure it out at the time)</li>
+	<li>I'll bet there are lots of issues with the entity system, it was never really tested</li>
+</ul>
+
+<p>I attempted to make a grid-based map editor, but only got as far as creating boxes, saving and loading, and compiling
+	into a binary format.</p>
+<img alt="Image of the map editor"
+	src="https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/physics/images/editor.png">

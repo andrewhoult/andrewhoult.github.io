@@ -110,6 +110,7 @@ iframe {
 	#project-description {
 		margin: auto;
 		width: 60%;
+		min-height: 70%;
 	}
 }
 

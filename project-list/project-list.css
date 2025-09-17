@@ -31,8 +31,8 @@
 .project-card img {
 	display: block;
 	margin: 0px;
-	max-height: 150px;
-	max-width: 100%;
+	height: 150px;
+	width: 267px;
 	align-self: center;
 	flex-shrink: 0;
 }
