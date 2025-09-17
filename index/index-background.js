@@ -36,6 +36,14 @@ class BackgroundRenderer {
 			format: navigator.gpu.getPreferredCanvasFormat(),
 			alphaMode: "premultiplied",
 		});
+
+		this.frame = this.frame.bind(this);
+		window.requestAnimationFrame(this.frame);
+	}
+
+	frame(timestep) {
+		console.log(timestep)
+		window.requestAnimationFrame(this.frame);
 	}
 }
 
