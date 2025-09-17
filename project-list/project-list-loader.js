@@ -73,7 +73,7 @@ function populateProjects() {
 			"2D Platformer",
 			"A really simple 2D platformer written in Vulkan, written completely from scratch with only the Vulkan and Windows SDKs.",
 			"platformer",
-			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/platformer/images/thumbnail.png",
+			"https://media.githubusercontent.com/media/andrewhoult/andrewhoult.github.io/main/projects/platformer/images/jump.webp",
 		),
 		new ProjectCard(
 			"WebGL Engine",
