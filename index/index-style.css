@@ -40,7 +40,7 @@
 
 @media (max-width: 1299px) {
 	.main-content {
-		max-width: min(800px, calc(100% - 20px));
+		max-width: min(800px, calc(100% - 40px));
 		margin: auto;
 	}
 }
@@ -55,4 +55,11 @@
 	.hide-mobile {
 		display: none;
 	}
+}
+
+#index-funny-background {
+	position: fixed;
+	width: 100%;
+	height: 100%;
+	z-index: -1000;
 }

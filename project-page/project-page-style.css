@@ -16,7 +16,11 @@
 
 #project-page {
 	width: 100%;
-	height: 100%;
+	min-height: 100vh;
+}
+
+#project-description {
+	min-height: 66%;
 }
 
 #back-button {
@@ -110,7 +114,6 @@ iframe {
 	#project-description {
 		margin: auto;
 		width: 60%;
-		min-height: 70%;
 	}
 }
 
