@@ -98,12 +98,13 @@ strong {
 }
 
 .social-icon>img {
-	width: 45px;
-	transition: 0.2s;
+	width: 40px;
+	transition: 0.05s;
+	opacity: 0.6;
 }
 
 .social-icon>img:hover {
-	opacity: 0.65;
+	opacity: 1;
 }
 
 .social-icon {
