@@ -2,7 +2,8 @@
 // Thanks to Jos Stam's paper "Real-Time Fluid Dynamics for Games"
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
-// I've adapted the algorithm presented there to run using shaders.
+// I've adapted the algorithm presented there to run on the GPU by using Jacobian
+// solvers with swapping textures.
 //
 
 const k_FramesInFlight = 1;
@@ -15,10 +16,12 @@ document.addEventListener("DOMContentLoaded", () => {
 	g_BackgroundRenderer.init(canvas);
 });
 
+// Add forces from force texture to velocity texture
 // Additive blending required
+// Renders to v0_tex
 const k_AddForcesShader = `
 @group(0) @binding(0) var dt : f32;
-@group(0) @binding(1) var sources : texture_2d<f32>;
+@group(0) @binding(1) var sources : texture_storage_2d<rg32float, read>;
 
 struct VertexOut {
   @builtin(position) position : vec4f,
@@ -40,61 +43,20 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
 }
 
 @fragment
-fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) f32 {
-  let texelCoord = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
-  let source = textureLoad(sources, texelCoord, 0);
-  return dt * source.r; // Additive blending required
+fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
+  let texelCoord	= vec2<i32>(fragCoord.xy);
+  let source 		= textureLoad(sources, texelCoord, 0).xy;
+  return dt * source.xy; // Additive blending required
 }
 `;
 
-// One step of the diffusion process
-const k_DiffuseStepShader = `
-@group(0) @binding(0) var scaledDiffusion : f32; // Diffusion scaled by dt.
-@group(0) @binding(1) var inputTex : texture_2d<f32>;
+// Jacobian solver step to diffuse velocity
+// Renders to v1_tex
+const k_DiffuseVelocityShader = `
+override viscosity: f32 = 0.000001488; // m^2/s
 
-struct VertexOut {
-  @builtin(position) position : vec4f,
-};
-
-const k_Positions = array<vec3f, 4>(
-  vec3f( 1.0, -1.0, 0.0),
-  vec3f( 1.0,  1.0, 0.0),
-  vec3f(-1.0, -1.0, 0.0),
-  vec3f(-1.0,  1.0, 0.0),
-);
-
-@vertex
-fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
-  var output : VertexOut;
-  let pos = k_Positions[vertexIndex];
-  output.position = vec4f(pos, 1.0);
-  return output;
-}
-
-fn safeLoad(tex: texture_2d<f32>, coord: vec2<i32>) -> f32 {
-  let size = textureDimensions(tex, 0);
-  let clamped = clamp(coord, vec2<i32>(0), vec2<i32>(i32(size.x - 1), i32(size.y - 1)));
-  return textureLoad(tex, clamped, 0).r;
-}
-
-@fragment
-fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) f32 {
-  let texelCoord = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
-  let input = safeLoad(inputTex, texelCoord, 0);
-  let inputLeft = safeLoad(inputTex, texelCoord + vec2<i32>(-1, 0), 0);
-  let inputRight = safeLoad(inputTex, texelCoord + vec2<i32>(1, 0), 0);
-  let inputUp = safeLoad(inputTex, texelCoord + vec2<i32>(0, 1), 0);
-  let inputDown = safeLoad(inputTex, texelCoord + vec2<i32>(0, -1), 0);
-  return (input + scaledDiffusion * (inputLeft + inputRight + inputUp + inputDown)) / (1 + 4 * scaledDiffusion);
-}
-`;
-
-// Advection
-const k_AdvectionShader = `
 @group(0) @binding(0) var dt : f32;
-@group(0) @binding(1) var d0 : texture_2d<f32>; // Previous density, or whatever else we're advecting
-@group(0) @binding(2) var velX : texture_2d<f32>;
-@group(0) @binding(3) var velY : texture_2d<f32>;
+@group(0) @binding(1) var v0_tex : texture_storage_2d<rg32float, read>;
 
 struct VertexOut {
   @builtin(position) position : vec4f,
@@ -115,96 +77,72 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
   return output;
 }
 
-fn safeLoad(tex: texture_2d<f32>, coord: vec2<i32>) -> f32 {
-  let size = textureDimensions(tex, 0);
-  let clamped = clamp(coord, vec2<i32>(0), vec2<i32>(i32(size.x - 1), i32(size.y - 1)));
-  return textureLoad(tex, clamped, 0).r;
+@fragment
+fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  let a = viscosity * dt; // grid size is 1
+
+  let v0 		= textureLoad(v0_tex, texelCoord, 0).xy;
+  let v0Left 	= textureLoad(v0_tex, leftCoord,  0).xy;
+  let v0Right 	= textureLoad(v0_tex, rightCoord, 0).xy;
+  let v0Down 	= textureLoad(v0_tex, downCoord,  0).xy;
+  let v0Up 		= textureLoad(v0_tex, upCoord,    0).xy;
+
+  let v1 = (v0 + a * (v0Left + v0Right + v0Down + v0Up)) / (1.0 + 4.0 * a);
+
+  return v1;
+}
+`;
+
+// Renders to divergence tex
+const k_GetDivergenceShader = `
+override viscosity: f32 = 0.000001488; // m^2/s
+
+@group(0) @binding(0) var dt : f32;
+@group(0) @binding(1) var v_tex : texture_storage_2d<rg32float, read>;
+
+struct VertexOut {
+  @builtin(position) position : vec4f,
+};
+
+const k_Positions = array<vec3f, 4>(
+  vec3f( 1.0, -1.0, 0.0),
+  vec3f( 1.0,  1.0, 0.0),
+  vec3f(-1.0, -1.0, 0.0),
+  vec3f(-1.0,  1.0, 0.0),
+);
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
+  var output : VertexOut;
+  let pos = k_Positions[vertexIndex];
+  output.position = vec4f(pos, 1.0);
+  return output;
 }
 
 @fragment
 fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) f32 {
-  let texelCoord = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
-  let size: vec2<u32> = textureDimensions(velX, 0);
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  var x: f32 = fragCoord.x - dt * safeLoad(velX, texelCoord);
-  var y: f32 = fragCoord.y - dt * safeLoad(velY, texelCoord);
+  let vLeft 	= textureLoad(v0_tex, leftCoord,  0).xy;
+  let vRight 	= textureLoad(v0_tex, rightCoord, 0).xy;
+  let vDown 	= textureLoad(v0_tex, downCoord,  0).xy;
+  let vUp 		= textureLoad(v0_tex, upCoord,    0).xy;
 
-  // Because we're simulating from midpoints
-  x = clamp(x, 0.5, size - 0.5);
-  y = clamp(y, 0.5, size - 0.5);
+  let div = -0.5 * (vRight.x - vLeft.x + vUp.y - vDown.y);
 
-  let i0: u32 = (u32)x;
-  let i1: u32 = i0 + 1;
-
-  let j0: u32 = (u32)y;
-  let j1: u32 = j0 + 1;
-
-  let s1 = x - i0;
-  let s0 = 1 - s1;
-  let t1 = y - j0;
-  let t0 = 1 - t1;
-
-  float d0i0j0 = safeLoad(d0, vec2<i32>(i0, j0));
-  float d0i0j1 = safeLoad(d0, vec2<i32>(i0, j1));
-  float d0i1j0 = safeLoad(d0, vec2<i32>(i1, j0));
-  float d0i1j1 = safeLoad(d0, vec2<i32>(i1, j1));
-
-  float d = s0 * (t0 * d0i0j0 + t1 * d0i0j1) + 
-			s1 * (t0 * d0i1j0 + t1 * d0i1j1);
-  return d;
+  return div;
 }
 `;
-
-class FrameData {
-	m_VelocityPressureTexture = null;
-	m_ColorTexture = null;
-
-	m_VelocityPressureTextureView = null;
-	m_ColorTextureView = null;
-
-	m_VelocityPressureBindGroup = null;
-	m_ColorBindGroup = null;
-
-	constructor(renderer) {
-		// TODO: Revisit usage when done
-		this.m_VelocityPressureTexture = renderer.m_Device.createTexture({
-			dimension: "2d",
-			format: "rgba32float",
-			size: [100, 100],
-			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-
-		this.m_ColorTexture = renderer.m_Device.createTexture({
-			dimension: "2d",
-			format: "rgba32float",
-			size: [100, 100],
-			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-
-		this.m_VelocityPressureTextureView = this.m_VelocityPressureTexture.createView();
-		this.m_ColorTextureView = this.m_ColorTexture.createView();
-
-		this.m_VelocityPressureBindGroup = renderer.m_Device.createBindGroup({
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityPressureTextureView,
-				}
-			],
-			layout: renderer.m_SharedBindGroupLayout
-		});
-
-		this.m_ColorBindGroup = renderer.m_Device.createBindGroup({
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_ColorTextureView,
-				}
-			],
-			layout: renderer.m_SharedBindGroupLayout
-		});
-	}
-}
 
 class BackgroundRenderer {
 	m_Canvas = null;
@@ -258,7 +196,7 @@ class BackgroundRenderer {
 		this.frame = this.frame.bind(this);
 
 		this.compileShaders();
-		//await this.createFrameData();
+		this.createResources();
 
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
@@ -284,19 +222,6 @@ class BackgroundRenderer {
 					binding: 0,
 					visibility: GPUShaderStage.FRAGMENT,
 					texture: {}
-				},
-			]
-		});
-
-		this.m_SharedWriteBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					storageTexture: {
-						access: "read-write",
-						format: "rg32float"
-					}
 				},
 			]
 		});
@@ -335,7 +260,7 @@ class BackgroundRenderer {
 		});
 	}
 
-	async createFrameData() {
+	async createResources() {
 		await this.m_Device.queue.onSubmittedWorkDone();
 
 		this.m_FrameData = new Array(k_FramesInFlight);
