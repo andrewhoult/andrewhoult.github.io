@@ -51,8 +51,8 @@ fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) vec2
 `;
 
 // Jacobian solver step to diffuse velocity
-// Renders to v1_tex
-const k_DiffuseVelocityShader = `
+// Renders to v1_tex, swap each iteration
+const k_DiffuseVelocityStepShader = `
 override viscosity: f32 = 0.000001488; // m^2/s
 
 @group(0) @binding(0) var dt : f32;
@@ -141,6 +141,97 @@ fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) f32 
   let div = -0.5 * (vRight.x - vLeft.x + vUp.y - vDown.y);
 
   return div;
+}
+`;
+
+// Jacobian solver step to find pressure
+// Renders to p1_tex, swap each iteration
+const k_CalcPressureStepShader = `
+@group(0) @binding(0) var dt : f32;
+@group(0) @binding(1) var p0_tex : texture_storage_2d<r32float, read>;
+@group(0) @binding(2) var div_tex : texture_storage_2d<r32float, read>;
+
+struct VertexOut {
+  @builtin(position) position : vec4f,
+};
+
+const k_Positions = array<vec3f, 4>(
+  vec3f( 1.0, -1.0, 0.0),
+  vec3f( 1.0,  1.0, 0.0),
+  vec3f(-1.0, -1.0, 0.0),
+  vec3f(-1.0,  1.0, 0.0),
+);
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
+  var output : VertexOut;
+  let pos = k_Positions[vertexIndex];
+  output.position = vec4f(pos, 1.0);
+  return output;
+}
+
+@fragment
+fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  let div 		= textureLoad(div_tex, texelCoord, 0).xy;
+  let p0Left 	= textureLoad(v0_tex,  leftCoord,  0).xy;
+  let p0Right 	= textureLoad(v0_tex,  rightCoord, 0).xy;
+  let p0Down 	= textureLoad(v0_tex,  downCoord,  0).xy;
+  let p0Up 		= textureLoad(v0_tex,  upCoord,    0).xy;
+
+  let p1 = 0.25 * (div + (p0Left + p0Right + p0Down + p0Up));
+
+  return v1;
+}
+`;
+
+// Project velocity, make it mass conserving
+// Renders to v_tex. Requires additive blending.
+const k_ProjectVelocityShader = `
+@group(0) @binding(0) var p_tex : texture_storage_2d<r32float, read>;
+
+struct VertexOut {
+  @builtin(position) position : vec4f,
+};
+
+const k_Positions = array<vec3f, 4>(
+  vec3f( 1.0, -1.0, 0.0),
+  vec3f( 1.0,  1.0, 0.0),
+  vec3f(-1.0, -1.0, 0.0),
+  vec3f(-1.0,  1.0, 0.0),
+);
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
+  var output : VertexOut;
+  let pos = k_Positions[vertexIndex];
+  output.position = vec4f(pos, 1.0);
+  return output;
+}
+
+@fragment
+fn fragment_main(@builtin(frag_coord) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  let pLeft 	= textureLoad(v0_tex,  leftCoord,  0).xy;
+  let pRight 	= textureLoad(v0_tex,  rightCoord, 0).xy;
+  let pDown 	= textureLoad(v0_tex,  downCoord,  0).xy;
+  let pUp 		= textureLoad(v0_tex,  upCoord,    0).xy;
+
+  let p1 = 0.25 * (div + (p0Left + p0Right + p0Down + p0Up));
+
+  let sub = 0.5 * vec2<f32>(pRight.x - pLeft.x, pUp.y - pDown.y);
+
+  return sub; // Requires additive blending
 }
 `;
 
