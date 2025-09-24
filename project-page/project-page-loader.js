@@ -15,8 +15,10 @@ document.addEventListener("DOMContentLoaded", () => {
 window.addEventListener("load", () => {
 	const card = document.getElementById(projectId);
 
-	card.scrollIntoView({ block: "nearest" });
-	card.classList.add("active-project");
+	if (card) {
+		card.scrollIntoView({ block: "nearest" });
+		card.classList.add("active-project");
+	}
 });
 
 class ProjectData {

@@ -11,6 +11,8 @@ const k_ResolutionScale = 0.125;
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
 
+const k_ObstacleInstanceSize = 16;
+
 let g_BackgroundRenderer;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -265,6 +267,20 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 }
 `;
 
+class BoxObstacle {
+	m_Timestep = 0;
+	m_Position = [0, 0];
+	m_LastPosition = [0, 0];
+	m_Dimensions = [0, 0];
+
+	constructor(x, y, w, h, timestep) {
+		this.m_Timestep = timestep;
+		this.m_Position = [x, y];
+		this.m_LastPosition = [x, y];
+		this.m_Dimensions = [w, h];
+	}
+}
+
 class BackgroundRenderer {
 	m_Canvas = null;
 	m_Adapter = null;
@@ -282,6 +298,8 @@ class BackgroundRenderer {
 	m_MouseV = 0;
 	m_IsMouseDown = false;
 
+	m_BoxObstaclesDict = {};
+
 	async init(canvas) {
 		console.log("Renderer init");
 		this.m_Canvas = canvas;
@@ -298,7 +316,9 @@ class BackgroundRenderer {
 			throw Error("readonly_and_readwrite_storage_textures not supported.");
 		}
 
-		this.m_Adapter = await navigator.gpu.requestAdapter();
+		this.m_Adapter = await navigator.gpu.requestAdapter({
+			powerPreference: "high-performance",
+		});
 		if (!this.m_Adapter) {
 			throw Error("Couldn't request WebGPU adapter.");
 		}
@@ -339,8 +359,11 @@ class BackgroundRenderer {
 				const width = entry.contentRect.width;
 				const height = entry.contentRect.height;
 
-				canvas.width = Math.floor(width * window.devicePixelRatio);
-				canvas.height = Math.floor(height * window.devicePixelRatio);
+				// canvas.width = Math.floor(width * window.devicePixelRatio);
+				// canvas.height = Math.floor(height * window.devicePixelRatio);
+
+				canvas.width = Math.floor(width);
+				canvas.height = Math.floor(height);
 
 				console.log("Resize: " + this.m_Canvas.width + ", " + this.m_Canvas.height);
 				this.createResources(canvas.width, canvas.height);
@@ -767,6 +790,10 @@ class BackgroundRenderer {
 	m_PressureTexViewB = null;
 	m_Sampler = null;
 
+	m_ObstacleMask = null;
+	m_ObstacleMaskView = null;
+	m_ObstacleInstanceBuffer = null;
+
 	createResources(width, height) {
 		this.m_SimWidth = width * k_ResolutionScale;
 		this.m_SimHeight = height * k_ResolutionScale;
@@ -837,6 +864,22 @@ class BackgroundRenderer {
 			addressModeV: "repeat",
 			magFilter: "linear",
 			minFilter: "linear",
+		});
+
+		this.m_ObstacleMask = this.m_Device.createTexture({
+			format: "r8uint",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Obstacle Mask"
+		});
+		this.m_ObstacleMaskView = this.m_ObstacleMask.createView();
+	}
+
+	createObstacleInstanceBuffer(objCount = 32) {
+		this.m_ObjectInstanceBuffer = this.m_Device.createBuffer({
+			label: "Object instance buffer",
+			size: k_ObstacleInstanceSize * objCount,
+			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX
 		});
 	}
 
@@ -968,6 +1011,8 @@ class BackgroundRenderer {
 			return;
 		}
 
+		this.updateObstacles();
+
 		let deltaT = (timestep - this.m_PrevTimeStep) / 1000;
 		this.m_PrevTimeStep = timestep;
 
@@ -976,6 +1021,8 @@ class BackgroundRenderer {
 		const renderView = renderTexture.createView();
 
 		const commandEncoder = this.m_Device.createCommandEncoder();
+
+		this.drawObstacles(commandEncoder);
 
 		// Set params
 		{
@@ -1230,5 +1277,67 @@ class BackgroundRenderer {
 			projectPass.draw(4);
 			projectPass.end();
 		}
+	}
+
+	updateObstacles(timestep) {
+		const elements = document.querySelectorAll("fluid-box");
+		elements.forEach(el => {
+			const rect = el.getBoundingClientRect();
+			if (this.m_BoxObstaclesDict[el.id]) {
+				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position];
+				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left, rect.top];
+				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width, rect.height];
+				this.m_Timestep = timestep;
+			} else {
+				console.log(`${rect.left}, ${rect.top}, ${rect.width}, ${rect.height}`);
+				this.m_BoxObstaclesDict[el.id] = new BoxObstacle(rect.left, rect.top, rect.width, rect.height, timestep);
+			}
+		});
+
+		Object.entries(this.m_BoxObstaclesDict).forEach(([key, value]) => {
+			if (value.m_Timestep < timestep) {
+				delete this.m_BoxObstaclesDict[key];
+			}
+		});
+	}
+
+	drawObstacles(commandEncoder) {
+		// const obstacles = Object.entries(this.m_BoxObstaclesDict);
+
+		// const capacity = this.m_ObstacleInstanceBuffer.size / k_ObstacleInstanceSize;
+		// if (capacity < obstacles.length) {
+		// 	this.createObstacleInstanceBuffer(capacity * 2);
+		// }
+
+		// let instanceData = new DataView(new ArrayBuffer(obstacles.length * k_ObstacleInstanceSize));
+
+		// let offset = 0;
+		// obstacles.forEach(([key, value]) => {
+		// 	instanceData.setInt32(0, value.m_Position[0], true);
+		// 	instanceData.setInt32(4, value.m_Position[1], true);
+		// 	instanceData.setInt32(8, value.m_Dimensions[0], true);
+		// 	instanceData.setInt32(12, value.m_Dimensions[1], true);
+		// 	offset += k_ObstacleInstanceSize;
+		// });
+
+		// this.m_Device.queue.writeBuffer(this.m_ObstacleInstanceBuffer, 0, instanceData, obstacles.length * k_ObstacleInstanceSize);
+
+		// // Draw to mask
+		// const obstaclePass = commandEncoder.beginRenderPass({
+		// 	colorAttachments: [{
+		// 		loadOp: "clear",
+		// 		storeOp: "store",
+		// 		view: this.m_ObstacleMaskView,
+		// 		clearValue: [0, 0, 0, 1]
+		// 	}],
+		// });
+
+		// obstaclePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		// obstaclePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		// obstaclePass.setPipeline(this.m_DrawObstaclesPipeline);
+
+		// obstaclePass.draw(4, obstacles.length);
+
+		// obstaclePass.end();
 	}
 }
