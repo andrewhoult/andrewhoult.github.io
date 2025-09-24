@@ -322,6 +322,7 @@ class BackgroundRenderer {
 	m_SampledTexBindGroupLayout = null;
 
 	m_AddForcesPipeline = null;
+	m_DiffuseVelocityPipeline = null;
 	m_GetDivergencePipeline = null;
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
@@ -400,6 +401,44 @@ class BackgroundRenderer {
 						color: {
 							srcFactor: "one",
 							dstFactor: "one",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const diffuseVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
+		});
+
+		const diffuseVelocityModule = this.m_Device.createShaderModule({
+			code: k_AddForcesShader,
+		});
+
+		this.m_DiffuseVelocityPipeline = this.m_Device.createRenderPipeline({
+			layout: diffuseVelocityPipelineLayout,
+			fragment: {
+				module: diffuseVelocityModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
 							operation: "add"
 						},
 						alpha: {
@@ -652,6 +691,29 @@ class BackgroundRenderer {
 
 			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
 			addForcesPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
+
+			addForcesPass.draw(4);
+			addForcesPass.end();
+		}
+
+		this.m_RenderingA = !this.m_RenderingA;
+
+		// Diffuse velocity
+		{
+			const diffuseStepPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+				}],
+			});
+
+			addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
+			addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
+			addForcesPass.setPipeline(this.m_pipe);
+
+			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
+			addForcesPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityTexB : this.m_VelocityTexA);
 
 			addForcesPass.draw(4);
 			addForcesPass.end();
