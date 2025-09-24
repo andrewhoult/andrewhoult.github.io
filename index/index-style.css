@@ -1,6 +1,10 @@
+html {
+	scroll-behavior: smooth;
+}
+
 .main-content {
 	max-width: min(800px, calc(100% - 20px));
-	margin: 100px auto;
+	margin: 20px auto;
 	padding-bottom: 20px;
 }
 
@@ -38,20 +42,20 @@
 	bottom: 10vh;
 }
 
-@media (max-width: 1299px) {
+@media (max-width: 1559px) {
 	.main-content {
 		max-width: min(800px, calc(100% - 40px));
 		margin: auto;
 	}
 }
 
-@media screen and (min-width: 1299px) {
+@media screen and (min-width: 1560px) {
 	.show-mobile {
 		display: none;
 	}
 }
 
-@media screen and (max-width: 1299px) {
+@media screen and (max-width: 1559px) {
 	.hide-mobile {
 		display: none;
 	}

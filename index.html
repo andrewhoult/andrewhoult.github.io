@@ -4,11 +4,13 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta name="Andrew Hoult" content="Personal portfolio, game programmer.">
+	<meta name="Andrew Hoult" content="Andrew Hoult's portfolio, software engineer, videogame programmer.">
+	<meta name="description" content="Andrew Hoult's portfolio, software engineer, videogame programmer.">
+
+	<link rel="canonical" href="https://andrewhoult.github.io/index.html">
 
 	<title>Andrew Hoult</title>
-	<link rel="icon" type="image/x-icon"
-		href="/favicon.ico">
+	<link rel="icon" type="image/x-icon" href="/favicon.ico">
 
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto">
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Barlow">
@@ -31,17 +33,23 @@
 		<div class="hide-mobile sidebar">
 			<div class="inner-sidebar">
 				<h1 class="title">Andrew Hoult</h1>
+				<p class="subtitle">Software engineer | Game Developer | Ontario Tech class of 2027</p>
+				<a class="subtitle link" href="mailto: andrewjhoult@gmail.com">andrewjhoult@gmail.com</a>
+				<br><br><br>
 				<ul class="no-style">
-					<li><a class="fancy-link" href="#about">– About</a></li>
-					<li><a class="fancy-link" href="#contact">– Contact</a></li>
-					<li><a class="fancy-link" href="#projects">– Projects</a></li>
+					<!-- <li><a class="fancy-link" href="#about">– About</a></li>
+					<li><a class="fancy-link" href="#contact">– Contact</a></li> -->
+
+					<li><a class="fancy-link" href="#projects-anchor-solo">– Solo Projects</a></li>
+					<li><a class="fancy-link" href="#projects-anchor-jam">– Game Jams</a></li>
+					<li><a class="fancy-link" href="#projects-anchor-long">– School Projects</a></li>
 				</ul>
 				<span class="footer">
-					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/"
+					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrewjhoult/"
 						target="_blank">
 						<img src="images/logos/linkedin.svg" alt="My LinkedIn">
 					</a>
-					<a rel="noopener" class="social-icon" href="https://github.com/andrewhoult" target="_blank">
+					<a rel="noopener" class="social-icon" href="https://github.com/mrrobottrax" target="_blank">
 						<img src="images/logos/github.svg" alt="My GitHub">
 					</a>
 					<a rel="noopener" class="social-icon" href="https://itch.io/profile/mrrobottrax" target="_blank">
@@ -53,20 +61,33 @@
 
 		<!-- Main Content -->
 		<div class="main-content">
-			<h1 class="title show-mobile">Andrew Hoult</h1>
+			<!-- Mobile Header -->
+			<span class="show-mobile">
+				<h2 class="title">Andrew Hoult</h2>
+				<p class="subtitle">Software engineer | Game Developer | Ontario Tech class of 2027</p>
+				<a class="subtitle link" href="mailto: andrewjhoult@gmail.com">andrewjhoult@gmail.com</a>
+				<br><br><br><br>
+				<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrewjhoult/" target="_blank">
+					<img src="images/logos/linkedin.svg" alt="My LinkedIn">
+				</a>
+				<a rel="noopener" class="social-icon" href="https://github.com/mrrobottrax" target="_blank">
+					<img src="images/logos/github.svg" alt="My GitHub">
+				</a>
+				<a rel="noopener" class="social-icon" href="https://itch.io/profile/mrrobottrax" target="_blank">
+					<img src="images/logos/itch.svg" alt="My Itch">
+				</a>
+				<br><br>
+				<hr>
+			</span>
 
 			<!-- Bio -->
-			<div id="about">
-				<h1>About</h1>
-				<hr><br>
-				<p>
-					Hi, I'm Andrew Hoult, a software engineer studying Game Development at Ontario Tech University.
-				</p>
+			<!-- <div id="about">
 				<h2>Experience</h2>
 				<ul>
 					<li>Developing two 8 month long projects with groups of 6+ people in Unity</li>
 					<li>Creating various toy engines</li>
 					<li>Various game jams</li>
+					<li>Prototyped a new interactive sign in system for University labs</li>
 					<li>Lots of terrible games</li>
 				</ul>
 				<h2>Skills</h2>
@@ -79,40 +100,15 @@
 					<li>Sound design with Audacity</li>
 					<li>Music production with FL Studio</li>
 				</ul>
-				<!-- Mobile social links -->
-				<span class="show-mobile">
-					<br><br>
-					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrew-hoult-9981aa29b/"
-						target="_blank">
-						<img src="images/logos/linkedin.svg" alt="My LinkedIn">
-					</a>
-					<a rel="noopener" class="social-icon" href="https://github.com/andrewhoult" target="_blank">
-						<img src="images/logos/github.svg" alt="My GitHub">
-					</a>
-					<a rel="noopener" class="social-icon" href="https://itch.io/profile/mrrobottrax" target="_blank">
-						<img src="images/logos/itch.svg" alt="My Itch">
-					</a>
-				</span>
-				<br>
-			</div>
-
-			<!-- Contact Info -->
-			<div id="contact">
-				<p>You can email me at:</p>
-				<a class="link" href="mailto: andrewjhoult@gmail.com">andrewjhoult@gmail.com</a>
-				<br>
-			</div>
+			</div> -->
 
 			<!-- Projects list populated at runtime -->
 			<div id="projects">
-				<br>
-				<h1>Projects</h1>
-				<hr>
-				<h2>Solo Projects (toy engines)</h2>
+				<h2 id="projects-anchor-solo">Solo Projects (toy engines)</h2>
 				<div id="projects-list-solo"></div>
-				<h2>Game Jams</h2>
+				<h2 id="projects-anchor-jam">Game Jams</h2>
 				<div id="projects-list-jam"></div>
-				<h2>School Projects</h2>
+				<h2 id="projects-anchor-long">School Projects</h2>
 				<div id="projects-list-long"></div>
 			</div>
 		</div>
