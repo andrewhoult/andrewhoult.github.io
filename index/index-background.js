@@ -11,7 +11,7 @@ const k_ResolutionScale = 0.125;
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
 
-const k_ObstacleInstanceSize = 16;
+const k_ObstacleInstanceSize = 24;
 
 let g_BackgroundRenderer;
 
@@ -267,6 +267,26 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 }
 `;
 
+const k_DisplayVec1uTexShader = `
+struct Params {
+  screenSize : vec2<i32>,
+  resolution : vec2<i32>,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v_tex : texture_storage_2d<r32uint, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+  let uv = vec2<f32>(fragCoord.xy / vec2<f32>(params.screenSize));
+  let texCoord = vec2<i32>(uv * vec2<f32>(params.resolution));
+
+  let v = textureLoad(v_tex, texCoord).x;
+  
+  return vec4<f32>(f32(v), f32(v), f32(v), 1);
+}
+`;
+
 const k_DrawObstaclesMaskShader = `
 struct VertexIn{
   @location(0) position : vec2<f32>,
@@ -278,23 +298,76 @@ struct VertexOut {
 };
 
 const k_Positions = array<vec3f, 4>(
-  vec3f(1.0, 0.0, 0.0),
-  vec3f(1.0, 1.0, 0.0),
+  vec3f(2.0, 0.0, 0.0),
+  vec3f(2.0, 2.0, 0.0),
   vec3f(0.0, 0.0, 0.0),
-  vec3f(0.0, 1.0, 0.0),
+  vec3f(0.0, 2.0, 0.0),
 );
 
 @vertex
 fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> VertexOut {
   var output : VertexOut;
-  let pos = k_Positions[vertexIndex] * vec3<f32>(in.dimensions, 0) + vec3<f32>(in.position, 0);
+
+  let dim = vec2<f32>(in.dimensions);
+  let offset = vec2<f32>(0, 0);
+
+  var pos = k_Positions[vertexIndex];
+  pos *= vec3<f32>(dim, 0);
+  pos -= vec3<f32>(1, 1, 0);
+  pos += vec3<f32>(0, 2 - 2 * dim.y, 0);
+  pos += 2 * vec3<f32>(offset.x, -offset.y, 0);
   output.position = vec4f(pos, 1.0);
+
   return output;
 }
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) u32 {
   return 1;
+}
+`;
+
+const k_DrawObstaclesVelocityShader = `
+struct VertexIn{
+  @location(0) position : vec2<f32>,
+  @location(1) dimensions : vec2<f32>,
+  @location(2) velocity : vec2<f32>,
+};
+
+struct VertexOut {
+  @builtin(position) position : vec4<f32>,
+  @location(0) velocity : vec2<f32>,
+};
+
+const k_Positions = array<vec3f, 4>(
+  vec3f(2.0, 0.0, 0.0),
+  vec3f(2.0, 2.0, 0.0),
+  vec3f(0.0, 0.0, 0.0),
+  vec3f(0.0, 2.0, 0.0),
+);
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> VertexOut {
+  var output : VertexOut;
+
+  let dim = vec2<f32>(in.dimensions);
+  let offset = vec2<f32>(0, 0);
+
+  var pos = k_Positions[vertexIndex];
+  pos *= vec3<f32>(dim, 0);
+  pos -= vec3<f32>(1, 1, 0);
+  pos += vec3<f32>(0, 2 - 2 * dim.y, 0);
+  pos += 2 * vec3<f32>(offset.x, -offset.y, 0);
+  output.position = vec4f(pos, 1.0);
+
+  output.velocity = in.velocity;
+
+  return output;
+}
+
+@fragment
+fn fragment_main(in : VertexOut) -> @location(0) vec2<f32> {
+  return vec2<f32>(in.velocity);
 }
 `;
 
@@ -427,6 +500,7 @@ class BackgroundRenderer {
 	m_ParamsBindGroupLayout = null;
 	m_Vec2StorageTexBindGroupLayout = null;
 	m_Vec1StorageTexBindGroupLayout = null;
+	m_Vec1uStorageTexBindGroupLayout = null;
 	m_SampledTexBindGroupLayout = null;
 
 	m_AddForcesPipeline = null;
@@ -435,10 +509,12 @@ class BackgroundRenderer {
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
 	m_AdvectVelocityPipeline = null;
+
 	m_DisplayVec2TexPipeline = null;
 	m_DisplayVec1TexPipeline = null;
+	m_DisplayVec1uTexPipeline = null;
 
-	m_DrawObstaclesPipeline = null;
+	m_DrawObstaclesMaskPipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -476,6 +552,19 @@ class BackgroundRenderer {
 					storageTexture: {
 						access: "read-only",
 						format: "r32float",
+					},
+				},
+			]
+		});
+
+		this.m_Vec1uStorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					storageTexture: {
+						access: "read-only",
+						format: "r32uint",
 					},
 				},
 			]
@@ -806,44 +895,87 @@ class BackgroundRenderer {
 			},
 		});
 
-		// const drawObstaclesPipelineLayout = this.m_Device.createPipelineLayout({
-		// 	bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout]
-		// });
+		const displayVec1uTexPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+		});
 
-		// const drawObstaclesModule = this.m_Device.createShaderModule({
-		// 	code: k_DrawObstaclesMaskShader,
-		// });
+		const displayVec1uTexModule = this.m_Device.createShaderModule({
+			code: k_DisplayVec1uTexShader,
+		});
 
-		// this.m_DrawObstaclesPipeline = this.m_Device.createRenderPipeline({
-		// 	label: "Draw obstacles pipeline",
-		// 	layout: drawObstaclesPipelineLayout,
-		// 	fragment: {
-		// 		module: drawObstaclesModule,
-		// 		targets: [{
-		// 			blend: {
-		// 				color: {
-		// 					srcFactor: "one",
-		// 					dstFactor: "zero",
-		// 					operation: "add"
-		// 				},
-		// 				alpha: {
-		// 					srcFactor: "one",
-		// 					dstFactor: "zero",
-		// 					operation: "add"
-		// 				}
-		// 			},
-		// 			format: "r32uint"
-		// 		}],
-		// 	},
-		// 	vertex: {
-		// 		module: drawObstaclesModule,
-		// 	},
-		// 	primitive: {
-		// 		topology: "triangle-strip",
-		// 		frontFace: "ccw",
-		// 		cullMode: "back",
-		// 	},
-		// });
+		this.m_DisplayVec1uTexPipeline = this.m_Device.createRenderPipeline({
+			layout: displayVec1uTexPipelineLayout,
+			fragment: {
+				module: displayVec1uTexModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: navigator.gpu.getPreferredCanvasFormat()
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const drawObstaclesMaskPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: []
+		});
+
+		const drawObstaclesMaskModule = this.m_Device.createShaderModule({
+			code: k_DrawObstaclesMaskShader,
+		});
+
+		this.m_DrawObstaclesMaskPipeline = this.m_Device.createRenderPipeline({
+			label: "Draw obstacles mask pipeline",
+			layout: drawObstaclesMaskPipelineLayout,
+			fragment: {
+				module: drawObstaclesMaskModule,
+				targets: [{
+					format: "r32uint"
+				}],
+			},
+			vertex: {
+				module: drawObstaclesMaskModule,
+				buffers: [
+					{
+						arrayStride: 24,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: "float32x2",
+							},
+							{
+								shaderLocation: 1,
+								offset: 8,
+								format: "float32x2",
+							},
+						],
+					}
+				]
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
 	}
 
 	m_ParamsBuffer = null;
@@ -968,6 +1100,8 @@ class BackgroundRenderer {
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
 
+	m_ObstacleMaskBindGroup = null;
+
 	createBindGroups() {
 		this.m_ParamsBindGroup = this.m_Device.createBindGroup({
 			layout: this.m_ParamsBindGroupLayout,
@@ -1073,6 +1207,16 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_PressureTexB
+				}
+			]
+		});
+
+		this.m_ObstacleMaskBindGroup = this.m_Device.createBindGroup({
+			layout: this.m_Vec1uStorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_ObstacleMask
 				}
 			]
 		});
@@ -1239,26 +1383,26 @@ class BackgroundRenderer {
 		this.projectStep(commandEncoder);
 
 		// Display velocity
-		{
-			const displayVelocityPass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "clear",
-					storeOp: "store",
-					view: renderView,
-					clearValue: [0, 0, 0, 1],
-				}],
-			});
+		// {
+		// 	const displayVelocityPass = commandEncoder.beginRenderPass({
+		// 		colorAttachments: [{
+		// 			loadOp: "clear",
+		// 			storeOp: "store",
+		// 			view: renderView,
+		// 			clearValue: [0, 0, 0, 1],
+		// 		}],
+		// 	});
 
-			displayVelocityPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
-			displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-			displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
+		// 	displayVelocityPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+		// 	displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+		// 	displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
-			displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+		// 	displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
+		// 	displayVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
 
-			displayVelocityPass.draw(4);
-			displayVelocityPass.end();
-		}
+		// 	displayVelocityPass.draw(4);
+		// 	displayVelocityPass.end();
+		// }
 
 		// Display pressure
 		// {
@@ -1281,6 +1425,28 @@ class BackgroundRenderer {
 		// 	displayPressurePass.draw(4);
 		// 	displayPressurePass.end();
 		// }
+
+		// Display obstacles
+		{
+			const displayObstaclesPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "clear",
+					storeOp: "store",
+					view: renderView,
+					clearValue: [0, 0, 0, 1],
+				}],
+			});
+
+			displayObstaclesPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+			displayObstaclesPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+			displayObstaclesPass.setPipeline(this.m_DisplayVec1uTexPipeline);
+
+			displayObstaclesPass.setBindGroup(0, this.m_DebugParamsBindGroup);
+			displayObstaclesPass.setBindGroup(1, this.m_ObstacleMaskBindGroup);
+
+			displayObstaclesPass.draw(4);
+			displayObstaclesPass.end();
+		}
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
@@ -1369,8 +1535,12 @@ class BackgroundRenderer {
 			const rect = el.getBoundingClientRect();
 			if (this.m_BoxObstaclesDict[el.id]) {
 				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position];
-				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left, rect.top];
-				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width, rect.height];
+				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left / this.m_Canvas.width, rect.top / this.m_Canvas.height];
+				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width / this.m_Canvas.width, rect.height / this.m_Canvas.height];
+
+				this.m_BoxObstaclesDict[el.id].m_Position = [0, 0];
+				this.m_BoxObstaclesDict[el.id].m_Dimensions = [0.5, 0.5];
+
 				this.m_Timestep = timestep;
 			} else {
 				console.log(`${rect.left}, ${rect.top}, ${rect.width}, ${rect.height}`);
@@ -1380,48 +1550,78 @@ class BackgroundRenderer {
 
 		Object.entries(this.m_BoxObstaclesDict).forEach(([key, value]) => {
 			if (value.m_Timestep < timestep) {
+				console.log("delete");
 				delete this.m_BoxObstaclesDict[key];
 			}
 		});
 	}
 
-	drawObstacles(commandEncoder) {
-		// const obstacles = Object.entries(this.m_BoxObstaclesDict);
+	drawObstacles(commandEncoder, deltaT) {
+		const obstacles = Object.entries(this.m_BoxObstaclesDict);
 
-		// const capacity = this.m_ObstacleInstanceBuffer.size / k_ObstacleInstanceSize;
-		// if (capacity < obstacles.length) {
-		// 	this.createObstacleInstanceBuffer(capacity * 2);
-		// }
+		const capacity = this.m_ObstacleInstanceBuffer.size / k_ObstacleInstanceSize;
+		if (capacity < obstacles.length) {
+			this.createObstacleInstanceBuffer(capacity * 2);
+		}
 
-		// let instanceData = new DataView(new ArrayBuffer(obstacles.length * k_ObstacleInstanceSize));
+		let instanceData = new DataView(new ArrayBuffer(obstacles.length * k_ObstacleInstanceSize));
 
-		// let offset = 0;
-		// obstacles.forEach(([key, value]) => {
-		// 	instanceData.setInt32(0, value.m_Position[0], true);
-		// 	instanceData.setInt32(4, value.m_Position[1], true);
-		// 	instanceData.setInt32(8, value.m_Dimensions[0], true);
-		// 	instanceData.setInt32(12, value.m_Dimensions[1], true);
-		// 	offset += k_ObstacleInstanceSize;
-		// });
+		let offset = 0;
+		obstacles.forEach(([key, value]) => {
+			instanceData.setFloat32(0, value.m_Position[0], true);
+			instanceData.setFloat32(4, value.m_Position[1], true);
+			instanceData.setFloat32(8, value.m_Dimensions[0], true);
+			instanceData.setFloat32(12, value.m_Dimensions[1], true);
+			instanceData.setFloat32(16, (value.m_Position[0] - value.m_Position[0]) / deltaT, true);
+			instanceData.setFloat32(20, (value.m_Position[1] - value.m_Position[1]) / deltaT, true);
 
-		// this.m_Device.queue.writeBuffer(this.m_ObstacleInstanceBuffer, 0, instanceData, obstacles.length * k_ObstacleInstanceSize);
+			instanceData.setFloat32(offset + 0, 0, true);
+			instanceData.setFloat32(offset + 4, 0, true);
+			instanceData.setFloat32(offset + 8, 1, true);
+			instanceData.setFloat32(offset + 12, 1, true);
+			instanceData.setFloat32(offset + 16, 0, true);
+			instanceData.setFloat32(offset + 20, 0, true);
 
-		// // Draw to mask
-		// const obstaclePass = commandEncoder.beginRenderPass({
+			offset += k_ObstacleInstanceSize;
+		});
+
+		this.m_Device.queue.writeBuffer(this.m_ObstacleInstanceBuffer, 0, instanceData);
+
+		// Draw to mask
+		const maskPass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "clear",
+				storeOp: "store",
+				view: this.m_ObstacleMaskView,
+				clearValue: [0, 0, 0, 1]
+			}],
+		});
+
+		maskPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		maskPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		maskPass.setPipeline(this.m_DrawObstaclesMaskPipeline);
+		maskPass.setVertexBuffer(0, this.m_ObstacleInstanceBuffer);
+
+		maskPass.draw(4, obstacles.length);
+
+		maskPass.end();
+
+		// Draw to velocity
+		// const velPass = commandEncoder.beginRenderPass({
 		// 	colorAttachments: [{
 		// 		loadOp: "clear",
 		// 		storeOp: "store",
-		// 		view: this.m_ObstacleMaskView,
+		// 		view: this.m_ObstacleVelocityView,
 		// 		clearValue: [0, 0, 0, 1]
 		// 	}],
 		// });
 
-		// obstaclePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-		// obstaclePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-		// obstaclePass.setPipeline(this.m_DrawObstaclesPipeline);
+		// velPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		// velPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		// velPass.setPipeline(this.m_DrawObstaclesVelocityPipeline);
 
-		// obstaclePass.draw(4, obstacles.length);
+		// velPass.draw(4, obstacles.length);
 
-		// obstaclePass.end();
+		// velPass.end();
 	}
 }
