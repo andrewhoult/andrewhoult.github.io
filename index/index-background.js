@@ -53,8 +53,8 @@ struct Params {
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
-  let texelCoord	= vec2<i32>(fragCoord.xy);
-  let source 		= textureLoad(sources, texelCoord).xy;
+  let texelCoord = vec2<i32>(fragCoord.xy);
+  let source 	 = textureLoad(sources, texelCoord).xy;
   return params.dT * source; // Additive blending required
 }
 `;
@@ -197,16 +197,23 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 `;
 
 // Render velocity as colour info for debugging
-const k_DisplayVelocityShader = `
-@group(0) @binding(0) var v_tex : texture_storage_2d<rg32float, read>;
+const k_DisplayVec2TexShader = `
+struct Params {
+  screenSize : vec2<i32>,
+  resolution : vec2<i32>,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v_tex : texture_storage_2d<rg32float, read>;
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
-  let texCoord = vec2<i32>(fragCoord.xy);
+  let uv = vec2<f32>(fragCoord.xy / vec2<f32>(params.screenSize));
+  let texCoord = vec2<i32>(uv * vec2<f32>(params.resolution));
 
   let v = textureLoad(v_tex, texCoord).xy;
   
-  return vec4<f32>(v.xy, 0, 1);
+  return vec4<f32>(v, 0, 1);
 }
 `;
 
@@ -217,6 +224,10 @@ class BackgroundRenderer {
 	m_Context = null;
 
 	m_RenderingA = true;
+
+	m_MouseU = 0;
+	m_MouseV = 0;
+	m_IsMouseDown = false;
 
 	async init(canvas) {
 		console.log("Renderer init");
@@ -278,6 +289,28 @@ class BackgroundRenderer {
 			}
 		});
 
+		window.addEventListener('mousemove', (event) => {
+			const rect = canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
+			const u = x / rect.width;
+			const v = y / rect.height;
+			this.m_MouseU = Math.min(Math.max(u, 0), 1);
+			this.m_MouseV = Math.min(Math.max(v, 0), 1);
+		});
+
+		window.addEventListener('mousedown', (event) => {
+			if (event.button === 0) {
+				this.m_IsMouseDown = true;
+			}
+		});
+
+		window.addEventListener('mouseup', (event) => {
+			if (event.button === 0) {
+				this.m_IsMouseDown = false;
+			}
+		});
+
 		resizeObserver.observe(this.m_Canvas);
 		window.requestAnimationFrame(this.frame);
 	}
@@ -292,7 +325,7 @@ class BackgroundRenderer {
 	m_GetDivergencePipeline = null;
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
-	m_DisplayVelocityPipeline = null;
+	m_DisplayVec2TexPipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -388,18 +421,18 @@ class BackgroundRenderer {
 			},
 		});
 
-		const displayVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_Vec2StorageTexBindGroupLayout]
+		const displayVec2TexPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
 		});
 
-		const displayVelocityModule = this.m_Device.createShaderModule({
-			code: k_DisplayVelocityShader,
+		const displayVec2TexModule = this.m_Device.createShaderModule({
+			code: k_DisplayVec2TexShader,
 		});
 
-		this.m_DisplayVelocityPipeline = this.m_Device.createRenderPipeline({
-			layout: displayVelocityPipelineLayout,
+		this.m_DisplayVec2TexPipeline = this.m_Device.createRenderPipeline({
+			layout: displayVec2TexPipelineLayout,
 			fragment: {
-				module: displayVelocityModule,
+				module: displayVec2TexModule,
 				targets: [{
 					blend: {
 						color: {
@@ -428,34 +461,56 @@ class BackgroundRenderer {
 	}
 
 	m_ParamsBuffer = null;
+	m_DebugParamsBuffer = null;
+	m_ForcesTex = null;
+	m_ForcesTexView = null;
 	m_VelocityTexA = null;
-	m_VelocityTextureViewA = null;
+	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
-	m_VelocityTextureViewB = null;
+	m_VelocityTexViewB = null;
 
 	createResources() {
 		this.m_ParamsBuffer = this.m_Device.createBuffer({
 			size: 16,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			label: "Params Buffer"
 		});
+
+		this.m_DebugParamsBuffer = this.m_Device.createBuffer({
+			size: 16,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			label: "Debug Params Buffer"
+		});
+
+		this.m_ForcesTex = this.m_Device.createTexture({
+			format: "rg32float",
+			size: [k_Width, k_Height],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_DST,
+			label: "Forces Texture"
+		});
+		this.m_ForcesTexView = this.m_ForcesTex.createView();
 
 		this.m_VelocityTexA = this.m_Device.createTexture({
 			format: "rg32float",
 			size: [k_Width, k_Height],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+			label: "Velocity Texture A"
 		});
-		this.m_VelocityTextureViewA = this.m_VelocityTexA.createView();
-		
+		this.m_VelocityTexViewA = this.m_VelocityTexA.createView();
+
 		this.m_VelocityTexB = this.m_Device.createTexture({
 			format: "rg32float",
 			size: [k_Width, k_Height],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+			label: "Velocity Texture B"
 		});
-		this.m_VelocityTextureViewB = this.m_VelocityTexB.createView();
+		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
 
 	}
 
 	m_ParamsBindGroup = null;
+	m_DebugParamsBindGroup = null;
+	m_ForcesStorageTexBindGroup = null;
 	m_VelocityStorageTexBindGroupA = null;
 	m_VelocityStorageTexBindGroupB = null;
 
@@ -466,6 +521,26 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_ParamsBuffer
+				}
+			]
+		});
+
+		this.m_DebugParamsBindGroup = this.m_Device.createBindGroup({
+			layout: this.m_ParamsBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_DebugParamsBuffer
+				}
+			]
+		});
+
+		this.m_ForcesStorageTexBindGroup = this.m_Device.createBindGroup({
+			layout: this.m_Vec2StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_ForcesTex
 				}
 			]
 		});
@@ -492,55 +567,138 @@ class BackgroundRenderer {
 	}
 
 	async frame(timestep) {
+		// Setup frame
 		const renderTexture = this.m_Context.getCurrentTexture();
 		const renderView = renderTexture.createView();
 
 		const commandEncoder = this.m_Device.createCommandEncoder();
 
-		let paramsView = new DataView(new ArrayBuffer(16));
+		// Set params
+		{
+			let paramsView = new DataView(new ArrayBuffer(16));
 
-		paramsView.setInt32(4, k_Width, true);
-		paramsView.setInt32(8, k_Height, true);
-		paramsView.setFloat32(0, 1.0 / 60.0, true);
-		paramsView.setInt32(12, 0, true);
+			paramsView.setInt32(0, k_Width, true);
+			paramsView.setInt32(4, k_Height, true);
+			paramsView.setFloat32(8, 1.0 / 60.0, true);
+			paramsView.setInt32(12, 0, true);
 
-		this.m_Device.queue.writeBuffer(this.m_ParamsBuffer, 0, paramsView);
+			this.m_Device.queue.writeBuffer(this.m_ParamsBuffer, 0, paramsView);
+		}
 
-		const addForcesPass = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				loadOp: "load",
-				storeOp: "store",
-				view: this.m_RenderingA ? this.m_VelocityTextureViewA : this.m_VelocityTextureViewB,
-			}],
-		});
+		// Clear forces
+		{
+			const clearForcesCommandEncoder = this.m_Device.createCommandEncoder();
+			const clearForcesPass = clearForcesCommandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "clear",
+					storeOp: "store",
+					view: this.m_ForcesTexView,
+					clearValue: [0, 0, 0, 0],
+				}],
+			});
 
-		addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-		addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
-		addForcesPass.setPipeline(this.m_AddForcesPipeline);
+			clearForcesPass.end();
+			this.m_Device.queue.submit([clearForcesCommandEncoder.finish()]);
+		}
 
-		addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
-		addForcesPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
+		// Set forces at mouse
+		if (this.m_IsMouseDown) {
+			let forcesView = new DataView(new ArrayBuffer(8));
+			forcesView.setFloat32(0, 0, true);
+			forcesView.setFloat32(4, 1, true);
 
-		addForcesPass.draw(4);
-		addForcesPass.end();
+			const x = Math.min(Math.max(this.m_MouseU * k_Width, 0), k_Width - 1);
+			const y = Math.min(Math.max(this.m_MouseV * k_Height, 0), k_Height - 1);
 
-		const displayVelocityPass = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				loadOp: "clear",
-				storeOp: "store",
-				view: renderView,
-				clearValue: [0, 0, 0, 1],
-			}],
-		});
+			this.m_Device.queue.writeTexture(
+				{
+					origin: [x, y, 0],
+					texture: this.m_ForcesTex
+				},
+				forcesView,
+				{},
+				{
+					width: 1,
+					height: 1,
+				}
+			);
+		}
 
-		displayVelocityPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-		displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-		displayVelocityPass.setPipeline(this.m_DisplayVelocityPipeline);
+		// Set debug params
+		{
+			let paramsView = new DataView(new ArrayBuffer(16));
 
-		displayVelocityPass.setBindGroup(0, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+			paramsView.setInt32(0, renderTexture.width, true);
+			paramsView.setInt32(4, renderTexture.height, true);
+			paramsView.setInt32(8, k_Width, true);
+			paramsView.setInt32(12, k_Height, true);
 
-		displayVelocityPass.draw(4);
-		displayVelocityPass.end();
+			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
+		}
+
+		// Add forces
+		// {
+		// 	const addForcesPass = commandEncoder.beginRenderPass({
+		// 		colorAttachments: [{
+		// 			loadOp: "load",
+		// 			storeOp: "store",
+		// 			view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+		// 		}],
+		// 	});
+
+		// 	addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
+		// 	addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
+		// 	addForcesPass.setPipeline(this.m_AddForcesPipeline);
+
+		// 	addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
+		// 	addForcesPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
+
+		// 	addForcesPass.draw(4);
+		// 	addForcesPass.end();
+		// }
+
+		// Display velocity
+		// {
+		// 	const displayVelocityPass = commandEncoder.beginRenderPass({
+		// 		colorAttachments: [{
+		// 			loadOp: "clear",
+		// 			storeOp: "store",
+		// 			view: renderView,
+		// 			clearValue: [0, 0, 0, 1],
+		// 		}],
+		// 	});
+
+		// 	displayVelocityPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
+		// 	displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+		// 	displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
+
+		// 	displayVelocityPass.setBindGroup(0, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+
+		// 	displayVelocityPass.draw(4);
+		// 	displayVelocityPass.end();
+		// }
+
+		// Display forces
+		{
+			const displayVelocityPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "clear",
+					storeOp: "store",
+					view: renderView,
+					clearValue: [0, 0, 0, 1],
+				}],
+			});
+
+			displayVelocityPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+			displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+			displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
+
+			displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
+			displayVelocityPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
+
+			displayVelocityPass.draw(4);
+			displayVelocityPass.end();
+		}
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
