@@ -6,7 +6,7 @@
 // solvers with swapping textures.
 //
 
-const k_ResolutionScale = 0.25;
+const k_ResolutionScale = 0.125;
 
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
@@ -64,7 +64,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 // Jacobian solver step to diffuse velocity
 // Renders to v1_tex, swap each iteration
 const k_DiffuseVelocityStepShader = `
-override viscosity: f32 = 20; // m^2/s
+override viscosity: f32 = 0.2; // m^2/s
 
 struct Params {
   resolution : vec2<i32>,
@@ -111,10 +111,17 @@ const k_GetDivergenceShader = `
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   let texelCoord 	= vec2<i32>(fragCoord.xy);
-  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
-  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
-  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
-  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(v_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
 
   let vLeft 	= textureLoad(v_tex, leftCoord).xy;
   let vRight 	= textureLoad(v_tex, rightCoord).xy;
@@ -136,10 +143,17 @@ const k_CalcPressureStepShader = `
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   let texelCoord 	= vec2<i32>(fragCoord.xy);
-  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
-  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
-  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
-  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(p0_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
 
   let div 		= textureLoad(div_tex, texelCoord).x;
   let p0Left 	= textureLoad(p0_tex,  leftCoord).x;
@@ -161,10 +175,17 @@ const k_ProjectVelocityShader = `
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
   let texelCoord 	= vec2<i32>(fragCoord.xy);
-  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
-  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
-  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
-  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(p_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
 
   let pLeft 	= textureLoad(p_tex,  leftCoord).x;
   let pRight 	= textureLoad(p_tex,  rightCoord).x;
@@ -186,7 +207,7 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
-@group(1) @binding(0) var v0_tex : texture_2d<vec2<f32>>;
+@group(1) @binding(0) var v0_tex : texture_2d<f32>;
 @group(1) @binding(1) var v0_sampler : sampler;
 
 @fragment
@@ -195,7 +216,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let v0 = textureSample(v0_tex, v0_sampler, uv).xy;
   
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
-  let takeUV = uv - back;
+  let takeUV = uv - back * 500;
 
   let v1 = textureSample(v0_tex, v0_sampler, takeUV).xy;
 
@@ -286,8 +307,12 @@ class BackgroundRenderer {
 			throw Error("float32-blendable not supported.");
 		}
 
+		if (!this.m_Adapter.features.has("float32-filterable")) {
+			throw Error("float32-filterable not supported.");
+		}
+
 		this.m_Device = await this.m_Adapter.requestDevice({
-			requiredFeatures: ["float32-blendable"]
+			requiredFeatures: ["float32-blendable", "float32-filterable"]
 		});
 		if (!this.m_Device) {
 			throw Error("Couldn't request WebGPU device.");
@@ -345,7 +370,6 @@ class BackgroundRenderer {
 		window.requestAnimationFrame(this.frame);
 	}
 
-	m_AddForcesPipeline = null;
 	m_ParamsBindGroupLayout = null;
 	m_Vec2StorageTexBindGroupLayout = null;
 	m_Vec1StorageTexBindGroupLayout = null;
@@ -356,6 +380,7 @@ class BackgroundRenderer {
 	m_GetDivergencePipeline = null;
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
+	m_AdvectVelocityPipeline = null;
 	m_DisplayVec2TexPipeline = null;
 	m_DisplayVec1TexPipeline = null;
 
@@ -610,6 +635,45 @@ class BackgroundRenderer {
 			},
 		});
 
+		const advectVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_SampledTexBindGroupLayout]
+		});
+
+		const advectVelocityStepModule = this.m_Device.createShaderModule({
+			code: k_AdvectVelocityShader,
+		});
+
+		this.m_AdvectVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Advect velocity pipeline",
+			layout: advectVelocityPipelineLayout,
+			fragment: {
+				module: advectVelocityStepModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
 		const displayVec2TexPipelineLayout = this.m_Device.createPipelineLayout({
 			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
 		});
@@ -701,6 +765,7 @@ class BackgroundRenderer {
 	m_PressureTexViewA = null;
 	m_PressureTexB = null;
 	m_PressureTexViewB = null;
+	m_Sampler = null;
 
 	createResources(width, height) {
 		this.m_SimWidth = width * k_ResolutionScale;
@@ -730,7 +795,8 @@ class BackgroundRenderer {
 			format: "rg32float",
 			size: [this.m_SimWidth, this.m_SimHeight],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-			label: "Velocity Texture A"
+			label: "Velocity Texture A",
+
 		});
 		this.m_VelocityTexViewA = this.m_VelocityTexA.createView();
 
@@ -765,6 +831,13 @@ class BackgroundRenderer {
 			label: "Pressure Texture B"
 		});
 		this.m_PressureTexViewB = this.m_PressureTexB.createView();
+
+		this.m_Sampler = this.m_Device.createSampler({
+			addressModeU: "repeat",
+			addressModeV: "repeat",
+			magFilter: "linear",
+			minFilter: "linear",
+		});
 	}
 
 	m_ParamsBindGroup = null;
@@ -772,6 +845,8 @@ class BackgroundRenderer {
 	m_ForcesStorageTexBindGroup = null;
 	m_VelocityStorageTexBindGroupA = null;
 	m_VelocityStorageTexBindGroupB = null;
+	m_VelocitySampledTexBindGroupA = null;
+	m_VelocitySampledTexBindGroupB = null;
 	m_DivergenceTexBindGroup = null;
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
@@ -823,6 +898,34 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_VelocityTexB
+				}
+			]
+		});
+
+		this.m_VelocitySampledTexBindGroupA = this.m_Device.createBindGroup({
+			layout: this.m_SampledTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexViewA
+				},
+				{
+					binding: 1,
+					resource: this.m_Sampler
+				}
+			]
+		});
+
+		this.m_VelocitySampledTexBindGroupB = this.m_Device.createBindGroup({
+			layout: this.m_SampledTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexViewB
+				},
+				{
+					binding: 1,
+					resource: this.m_Sampler
 				}
 			]
 		});
@@ -904,15 +1007,16 @@ class BackgroundRenderer {
 
 		// Set forces at mouse
 		if (this.m_IsMouseDown) {
+			const scale = 200;
 			let forcesView = new DataView(new ArrayBuffer(16));
 			forcesView.setFloat32(0, 0, true);
-			forcesView.setFloat32(4, 5000, true);
+			forcesView.setFloat32(4, scale, true);
 
 			forcesView.setFloat32(8, 0, true);
-			forcesView.setFloat32(12, -5000, true);
+			forcesView.setFloat32(12, 0, true);
 
 			const x = Math.min(Math.max(this.m_MouseU * this.m_SimWidth, 0), this.m_SimWidth - 1);
-			const y = Math.min(Math.max(this.m_MouseV * this.m_SimHeight, 0), this.m_SimHeight - 1);
+			const y = Math.min(Math.max(this.m_MouseV * this.m_SimHeight, 0), this.m_SimHeight - 2);
 
 			this.m_Device.queue.writeTexture(
 				{
@@ -989,6 +1093,27 @@ class BackgroundRenderer {
 		this.projectStep(commandEncoder);
 
 		// Advect velocity
+		{
+			this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
+
+			const advectVelocityPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+				}],
+			});
+
+			advectVelocityPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			advectVelocityPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			advectVelocityPass.setPipeline(this.m_AdvectVelocityPipeline);
+
+			advectVelocityPass.setBindGroup(0, this.m_ParamsBindGroup);
+			advectVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocitySampledTexBindGroupB : this.m_VelocitySampledTexBindGroupA);
+
+			advectVelocityPass.draw(4);
+			advectVelocityPass.end();
+		}
 
 		this.projectStep(commandEncoder);
 
