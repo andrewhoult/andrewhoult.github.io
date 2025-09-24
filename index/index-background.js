@@ -9,6 +9,8 @@
 const k_Width = 100;
 const k_Height = 100;
 
+const k_VelocityDiffuseSteps = 20;
+
 let g_BackgroundRenderer;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -62,7 +64,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 // Jacobian solver step to diffuse velocity
 // Renders to v1_tex, swap each iteration
 const k_DiffuseVelocityStepShader = `
-override viscosity: f32 = 0.000001488; // m^2/s
+override viscosity: f32 = 0.1; // m^2/s
 
 struct Params {
   resolution : vec2<i32>,
@@ -71,7 +73,7 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
-@group(1) @binding(1) var v0_tex : texture_storage_2d<rg32float, read>;
+@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
@@ -85,7 +87,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 
   let v0 		= textureLoad(v0_tex, texelCoord).xy;
   let v0Left 	= textureLoad(v0_tex, leftCoord).xy;
-  let v0Right 	= textureLoad(v0_tex, rightCoor).xy;
+  let v0Right 	= textureLoad(v0_tex, rightCoord).xy;
   let v0Down 	= textureLoad(v0_tex, downCoord).xy;
   let v0Up 		= textureLoad(v0_tex, upCoord).xy;
 
@@ -301,13 +303,7 @@ class BackgroundRenderer {
 
 		window.addEventListener('mousedown', (event) => {
 			if (event.button === 0) {
-				this.m_IsMouseDown = true;
-			}
-		});
-
-		window.addEventListener('mouseup', (event) => {
-			if (event.button === 0) {
-				this.m_IsMouseDown = false;
+				this.m_IsMouseDown = !this.m_IsMouseDown;
 			}
 		});
 
@@ -427,7 +423,7 @@ class BackgroundRenderer {
 		});
 
 		const diffuseVelocityModule = this.m_Device.createShaderModule({
-			code: k_AddForcesShader,
+			code: k_DiffuseVelocityStepShader,
 		});
 
 		this.m_DiffuseVelocityPipeline = this.m_Device.createRenderPipeline({
@@ -644,7 +640,7 @@ class BackgroundRenderer {
 		if (this.m_IsMouseDown) {
 			let forcesView = new DataView(new ArrayBuffer(8));
 			forcesView.setFloat32(0, 0, true);
-			forcesView.setFloat32(4, 1, true);
+			forcesView.setFloat32(4, 10, true);
 
 			const x = Math.min(Math.max(this.m_MouseU * k_Width, 0), k_Width - 1);
 			const y = Math.min(Math.max(this.m_MouseV * k_Height, 0), k_Height - 1);
@@ -696,10 +692,10 @@ class BackgroundRenderer {
 			addForcesPass.end();
 		}
 
-		this.m_RenderingA = !this.m_RenderingA;
-
 		// Diffuse velocity
-		{
+		for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
+			this.m_RenderingA = !this.m_RenderingA;
+
 			const diffuseStepPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
@@ -708,15 +704,15 @@ class BackgroundRenderer {
 				}],
 			});
 
-			addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-			addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
-			addForcesPass.setPipeline(this.m_pipe);
+			diffuseStepPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
+			diffuseStepPass.setScissorRect(0, 0, k_Width, k_Height);
+			diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
 
-			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
-			addForcesPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityTexB : this.m_VelocityTexA);
+			diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
+			diffuseStepPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
 
-			addForcesPass.draw(4);
-			addForcesPass.end();
+			diffuseStepPass.draw(4);
+			diffuseStepPass.end();
 		}
 
 		// Display velocity
@@ -743,7 +739,6 @@ class BackgroundRenderer {
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
-		this.m_RenderingA = !this.m_RenderingA;
 		window.requestAnimationFrame(this.frame);
 	}
 }
