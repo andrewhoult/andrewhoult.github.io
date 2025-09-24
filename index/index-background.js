@@ -6,8 +6,7 @@
 // solvers with swapping textures.
 //
 
-const k_Width = 100;
-const k_Height = 100;
+const k_ResolutionScale = 0.25;
 
 const k_VelocityDiffuseSteps = 20;
 
@@ -64,7 +63,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 // Jacobian solver step to diffuse velocity
 // Renders to v1_tex, swap each iteration
 const k_DiffuseVelocityStepShader = `
-override viscosity: f32 = 0.1; // m^2/s
+override viscosity: f32 = 20; // m^2/s
 
 struct Params {
   resolution : vec2<i32>,
@@ -78,10 +77,17 @@ struct Params {
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
   let texelCoord 	= vec2<i32>(fragCoord.xy);
-  let leftCoord 	= texelCoord + vec2<i32>(-1,  0);
-  let rightCoord 	= texelCoord + vec2<i32>( 1,  0);
-  let downCoord 	= texelCoord + vec2<i32>( 0, -1);
-  let upCoord 		= texelCoord + vec2<i32>( 0,  1);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(v0_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
 
   let a = viscosity * params.dT; // grid size is 1
 
@@ -225,7 +231,11 @@ class BackgroundRenderer {
 	m_Device = null;
 	m_Context = null;
 
+	m_IsReady = false;
+
 	m_RenderingA = true;
+	m_SimWidth = 100;
+	m_SimHeight = 100;
 
 	m_MouseU = 0;
 	m_MouseV = 0;
@@ -276,11 +286,11 @@ class BackgroundRenderer {
 		this.frame = this.frame.bind(this);
 
 		this.createPipelines();
-		this.createResources();
-		this.createBindGroups();
 
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
+				this.m_IsReady = false;
+
 				const width = entry.contentRect.width;
 				const height = entry.contentRect.height;
 
@@ -288,6 +298,10 @@ class BackgroundRenderer {
 				canvas.height = Math.floor(height * window.devicePixelRatio);
 
 				console.log("Resize: " + this.m_Canvas.width + ", " + this.m_Canvas.height);
+				this.createResources(canvas.width, canvas.height);
+				this.createBindGroups();
+
+				this.m_IsReady = true;
 			}
 		});
 
@@ -504,7 +518,10 @@ class BackgroundRenderer {
 	m_VelocityTexB = null;
 	m_VelocityTexViewB = null;
 
-	createResources() {
+	createResources(width, height) {
+		this.m_SimWidth = width * k_ResolutionScale;
+		this.m_SimHeight = height * k_ResolutionScale;
+
 		this.m_ParamsBuffer = this.m_Device.createBuffer({
 			size: 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -519,7 +536,7 @@ class BackgroundRenderer {
 
 		this.m_ForcesTex = this.m_Device.createTexture({
 			format: "rg32float",
-			size: [k_Width, k_Height],
+			size: [this.m_SimWidth, this.m_SimHeight],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_DST,
 			label: "Forces Texture"
 		});
@@ -527,7 +544,7 @@ class BackgroundRenderer {
 
 		this.m_VelocityTexA = this.m_Device.createTexture({
 			format: "rg32float",
-			size: [k_Width, k_Height],
+			size: [this.m_SimWidth, this.m_SimHeight],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
 			label: "Velocity Texture A"
 		});
@@ -535,12 +552,11 @@ class BackgroundRenderer {
 
 		this.m_VelocityTexB = this.m_Device.createTexture({
 			format: "rg32float",
-			size: [k_Width, k_Height],
+			size: [this.m_SimWidth, this.m_SimHeight],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
 			label: "Velocity Texture B"
 		});
 		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
-
 	}
 
 	m_ParamsBindGroup = null;
@@ -602,6 +618,15 @@ class BackgroundRenderer {
 	}
 
 	async frame(timestep) {
+		if (!this.m_IsReady) {
+			this.m_PrevTimeStep = timestep;
+			window.requestAnimationFrame(this.frame);
+			return;
+		}
+
+		let deltaT = (timestep - this.m_PrevTimeStep) / 1000;
+		this.m_PrevTimeStep = timestep;
+
 		// Setup frame
 		const renderTexture = this.m_Context.getCurrentTexture();
 		const renderView = renderTexture.createView();
@@ -612,9 +637,9 @@ class BackgroundRenderer {
 		{
 			let paramsView = new DataView(new ArrayBuffer(16));
 
-			paramsView.setInt32(0, k_Width, true);
-			paramsView.setInt32(4, k_Height, true);
-			paramsView.setFloat32(8, 1.0 / 60.0, true);
+			paramsView.setInt32(0, this.m_SimWidth, true);
+			paramsView.setInt32(4, this.m_SimHeight, true);
+			paramsView.setFloat32(8, deltaT, true);
 			paramsView.setInt32(12, 0, true);
 
 			this.m_Device.queue.writeBuffer(this.m_ParamsBuffer, 0, paramsView);
@@ -640,10 +665,10 @@ class BackgroundRenderer {
 		if (this.m_IsMouseDown) {
 			let forcesView = new DataView(new ArrayBuffer(8));
 			forcesView.setFloat32(0, 0, true);
-			forcesView.setFloat32(4, 10, true);
+			forcesView.setFloat32(4, 500, true);
 
-			const x = Math.min(Math.max(this.m_MouseU * k_Width, 0), k_Width - 1);
-			const y = Math.min(Math.max(this.m_MouseV * k_Height, 0), k_Height - 1);
+			const x = Math.min(Math.max(this.m_MouseU * this.m_SimWidth, 0), this.m_SimWidth - 1);
+			const y = Math.min(Math.max(this.m_MouseV * this.m_SimHeight, 0), this.m_SimHeight - 1);
 
 			this.m_Device.queue.writeTexture(
 				{
@@ -665,8 +690,8 @@ class BackgroundRenderer {
 
 			paramsView.setInt32(0, renderTexture.width, true);
 			paramsView.setInt32(4, renderTexture.height, true);
-			paramsView.setInt32(8, k_Width, true);
-			paramsView.setInt32(12, k_Height, true);
+			paramsView.setInt32(8, this.m_SimWidth, true);
+			paramsView.setInt32(12, this.m_SimHeight, true);
 
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
 		}
@@ -681,8 +706,8 @@ class BackgroundRenderer {
 				}],
 			});
 
-			addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-			addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
+			addForcesPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			addForcesPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
 			addForcesPass.setPipeline(this.m_AddForcesPipeline);
 
 			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
@@ -704,8 +729,8 @@ class BackgroundRenderer {
 				}],
 			});
 
-			diffuseStepPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-			diffuseStepPass.setScissorRect(0, 0, k_Width, k_Height);
+			diffuseStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			diffuseStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
 			diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
 
 			diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
