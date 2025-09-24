@@ -9,6 +9,7 @@
 const k_ResolutionScale = 0.25;
 
 const k_VelocityDiffuseSteps = 20;
+const k_PressureSteps = 20;
 
 let g_BackgroundRenderer;
 
@@ -105,8 +106,6 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 
 // Renders to divergence tex
 const k_GetDivergenceShader = `
-override viscosity: f32 = 0.000001488; // m^2/s
-
 @group(0) @binding(0) var v_tex : texture_storage_2d<rg32float, read>;
 
 @fragment
@@ -204,7 +203,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 }
 `;
 
-// Render velocity as colour info for debugging
+// Render vec2 as colour info for debugging
 const k_DisplayVec2TexShader = `
 struct Params {
   screenSize : vec2<i32>,
@@ -221,7 +220,27 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 
   let v = textureLoad(v_tex, texCoord).xy;
   
-  return vec4<f32>(v, 0, 1);
+  return vec4<f32>(abs(v), 0, 1);
+}
+`;
+
+const k_DisplayVec1TexShader = `
+struct Params {
+  screenSize : vec2<i32>,
+  resolution : vec2<i32>,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v_tex : texture_storage_2d<r32float, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+  let uv = vec2<f32>(fragCoord.xy / vec2<f32>(params.screenSize));
+  let texCoord = vec2<i32>(uv * vec2<f32>(params.resolution));
+
+  let v = textureLoad(v_tex, texCoord).x;
+  
+  return vec4<f32>(0, 0, v, 1);
 }
 `;
 
@@ -233,7 +252,8 @@ class BackgroundRenderer {
 
 	m_IsReady = false;
 
-	m_RenderingA = true;
+	m_RenderingVelocityA = true;
+	m_RenderingPressureA = true;
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
@@ -337,6 +357,7 @@ class BackgroundRenderer {
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
 	m_DisplayVec2TexPipeline = null;
+	m_DisplayVec1TexPipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -403,6 +424,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_AddForcesPipeline = this.m_Device.createRenderPipeline({
+			label: "Add forces pipeline",
 			layout: addForcesPipelineLayout,
 			fragment: {
 				module: addForcesModule,
@@ -441,6 +463,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_DiffuseVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Diffuse velocity pipeline",
 			layout: diffuseVelocityPipelineLayout,
 			fragment: {
 				module: diffuseVelocityModule,
@@ -449,6 +472,123 @@ class BackgroundRenderer {
 						color: {
 							srcFactor: "one",
 							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const getDivergencePipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_Vec2StorageTexBindGroupLayout]
+		});
+
+		const getDivergenceModule = this.m_Device.createShaderModule({
+			code: k_GetDivergenceShader,
+		});
+
+		this.m_GetDivergencePipeline = this.m_Device.createRenderPipeline({
+			label: "Get divergence pipeline",
+			layout: getDivergencePipelineLayout,
+			fragment: {
+				module: getDivergenceModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "r32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const calcPressureStepPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout, this.m_Vec1StorageTexBindGroupLayout]
+		});
+
+		const calcPressureStepModule = this.m_Device.createShaderModule({
+			code: k_CalcPressureStepShader,
+		});
+
+		this.m_CalcPressureStepPipeline = this.m_Device.createRenderPipeline({
+			label: "Calc pressure pipeline",
+			layout: calcPressureStepPipelineLayout,
+			fragment: {
+				module: calcPressureStepModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "r32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const projectVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout]
+		});
+
+		const projectVelocityStepModule = this.m_Device.createShaderModule({
+			code: k_ProjectVelocityShader,
+		});
+
+		this.m_ProjectVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Project velocity pipeline",
+			layout: projectVelocityPipelineLayout,
+			fragment: {
+				module: projectVelocityStepModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "one",
 							operation: "add"
 						},
 						alpha: {
@@ -507,6 +647,44 @@ class BackgroundRenderer {
 				cullMode: "back",
 			},
 		});
+
+		const displayVec1TexPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec1StorageTexBindGroupLayout]
+		});
+
+		const displayVec1TexModule = this.m_Device.createShaderModule({
+			code: k_DisplayVec1TexShader,
+		});
+
+		this.m_DisplayVec1TexPipeline = this.m_Device.createRenderPipeline({
+			layout: displayVec1TexPipelineLayout,
+			fragment: {
+				module: displayVec1TexModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: navigator.gpu.getPreferredCanvasFormat()
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
 	}
 
 	m_ParamsBuffer = null;
@@ -517,6 +695,12 @@ class BackgroundRenderer {
 	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
 	m_VelocityTexViewB = null;
+	m_DivergenceTex = null;
+	m_DivergenceTexView = null;
+	m_PressureTexA = null;
+	m_PressureTexViewA = null;
+	m_PressureTexB = null;
+	m_PressureTexViewB = null;
 
 	createResources(width, height) {
 		this.m_SimWidth = width * k_ResolutionScale;
@@ -557,6 +741,30 @@ class BackgroundRenderer {
 			label: "Velocity Texture B"
 		});
 		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
+
+		this.m_DivergenceTex = this.m_Device.createTexture({
+			format: "r32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Divergence Texture"
+		});
+		this.m_DivergenceTexView = this.m_DivergenceTex.createView();
+
+		this.m_PressureTexA = this.m_Device.createTexture({
+			format: "r32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Pressure Texture A"
+		});
+		this.m_PressureTexViewA = this.m_PressureTexA.createView();
+
+		this.m_PressureTexB = this.m_Device.createTexture({
+			format: "r32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Pressure Texture B"
+		});
+		this.m_PressureTexViewB = this.m_PressureTexB.createView();
 	}
 
 	m_ParamsBindGroup = null;
@@ -564,6 +772,9 @@ class BackgroundRenderer {
 	m_ForcesStorageTexBindGroup = null;
 	m_VelocityStorageTexBindGroupA = null;
 	m_VelocityStorageTexBindGroupB = null;
+	m_DivergenceTexBindGroup = null;
+	m_PressureTexBindGroupA = null;
+	m_PressureTexBindGroupB = null;
 
 	createBindGroups() {
 		this.m_ParamsBindGroup = this.m_Device.createBindGroup({
@@ -615,6 +826,36 @@ class BackgroundRenderer {
 				}
 			]
 		});
+
+		this.m_DivergenceTexBindGroup = this.m_Device.createBindGroup({
+			layout: this.m_Vec1StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_DivergenceTex
+				}
+			]
+		});
+
+		this.m_PressureTexBindGroupA = this.m_Device.createBindGroup({
+			layout: this.m_Vec1StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_PressureTexA
+				}
+			]
+		});
+
+		this.m_PressureTexBindGroupB = this.m_Device.createBindGroup({
+			layout: this.m_Vec1StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_PressureTexB
+				}
+			]
+		});
 	}
 
 	async frame(timestep) {
@@ -663,9 +904,12 @@ class BackgroundRenderer {
 
 		// Set forces at mouse
 		if (this.m_IsMouseDown) {
-			let forcesView = new DataView(new ArrayBuffer(8));
+			let forcesView = new DataView(new ArrayBuffer(16));
 			forcesView.setFloat32(0, 0, true);
-			forcesView.setFloat32(4, 500, true);
+			forcesView.setFloat32(4, 5000, true);
+
+			forcesView.setFloat32(8, 0, true);
+			forcesView.setFloat32(12, -5000, true);
 
 			const x = Math.min(Math.max(this.m_MouseU * this.m_SimWidth, 0), this.m_SimWidth - 1);
 			const y = Math.min(Math.max(this.m_MouseV * this.m_SimHeight, 0), this.m_SimHeight - 1);
@@ -676,10 +920,12 @@ class BackgroundRenderer {
 					texture: this.m_ForcesTex
 				},
 				forcesView,
-				{},
+				{
+					bytesPerRow: 8,
+				},
 				{
 					width: 1,
-					height: 1,
+					height: 2,
 				}
 			);
 		}
@@ -702,7 +948,7 @@ class BackgroundRenderer {
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
 				}],
 			});
 
@@ -719,13 +965,13 @@ class BackgroundRenderer {
 
 		// Diffuse velocity
 		for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
-			this.m_RenderingA = !this.m_RenderingA;
+			this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
 
 			const diffuseStepPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
 				}],
 			});
 
@@ -734,11 +980,13 @@ class BackgroundRenderer {
 			diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
 
 			diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
-			diffuseStepPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
+			diffuseStepPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
 
 			diffuseStepPass.draw(4);
 			diffuseStepPass.end();
 		}
+
+		this.projectStep(commandEncoder);
 
 		// Display velocity
 		{
@@ -756,14 +1004,102 @@ class BackgroundRenderer {
 			displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
 			displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayVelocityPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+			displayVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
 
 			displayVelocityPass.draw(4);
 			displayVelocityPass.end();
 		}
 
+		// Display pressure
+		// {
+		// 	const displayPressurePass = commandEncoder.beginRenderPass({
+		// 		colorAttachments: [{
+		// 			loadOp: "clear",
+		// 			storeOp: "store",
+		// 			view: renderView,
+		// 			clearValue: [0, 0, 0, 1],
+		// 		}],
+		// 	});
+
+		// 	displayPressurePass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+		// 	displayPressurePass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+		// 	displayPressurePass.setPipeline(this.m_DisplayVec1TexPipeline);
+
+		// 	displayPressurePass.setBindGroup(0, this.m_DebugParamsBindGroup);
+		// 	displayPressurePass.setBindGroup(1, renderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
+
+		// 	displayPressurePass.draw(4);
+		// 	displayPressurePass.end();
+		// }
+
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
 		window.requestAnimationFrame(this.frame);
+	}
+
+	projectStep(commandEncoder) {
+		// Get divergence
+		{
+			const divergencePass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_DivergenceTexView,
+				}],
+			});
+
+			divergencePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			divergencePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			divergencePass.setPipeline(this.m_GetDivergencePipeline);
+
+			divergencePass.setBindGroup(0, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+
+			divergencePass.draw(4);
+			divergencePass.end();
+		}
+
+		// Get pressure
+		this.m_RenderingPressureA = false;
+		for (let i = 0; i < k_PressureSteps; ++i) {
+			this.m_RenderingPressureA = !this.m_RenderingPressureA;
+
+			const pressureStepPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_RenderingPressureA ? this.m_PressureTexViewA : this.m_PressureTexViewB,
+				}],
+			});
+
+			pressureStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			pressureStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			pressureStepPass.setPipeline(this.m_CalcPressureStepPipeline);
+
+			pressureStepPass.setBindGroup(0, this.m_RenderingPressureA ? this.m_PressureTexBindGroupB : this.m_PressureTexBindGroupA);
+			pressureStepPass.setBindGroup(1, this.m_DivergenceTexBindGroup);
+
+			pressureStepPass.draw(4);
+			pressureStepPass.end();
+		}
+
+		// Project velocity
+		{
+			const projectPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+				}],
+			});
+
+			projectPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			projectPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			projectPass.setPipeline(this.m_ProjectVelocityPipeline);
+
+			projectPass.setBindGroup(0, this.m_RenderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
+
+			projectPass.draw(4);
+			projectPass.end();
+		}
 	}
 }
