@@ -988,6 +988,10 @@ class BackgroundRenderer {
 
 		this.projectStep(commandEncoder);
 
+		// Advect velocity
+
+		this.projectStep(commandEncoder);
+
 		// Display velocity
 		{
 			const displayVelocityPass = commandEncoder.beginRenderPass({
@@ -1026,7 +1030,7 @@ class BackgroundRenderer {
 		// 	displayPressurePass.setPipeline(this.m_DisplayVec1TexPipeline);
 
 		// 	displayPressurePass.setBindGroup(0, this.m_DebugParamsBindGroup);
-		// 	displayPressurePass.setBindGroup(1, renderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
+		// 	displayPressurePass.setBindGroup(1, this.m_RenderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
 
 		// 	displayPressurePass.draw(4);
 		// 	displayPressurePass.end();
