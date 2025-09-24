@@ -267,6 +267,37 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 }
 `;
 
+const k_DrawObstaclesMaskShader = `
+struct VertexIn{
+  @location(0) position : vec2<f32>,
+  @location(1) dimensions : vec2<f32>,
+};
+
+struct VertexOut {
+  @builtin(position) position : vec4<f32>,
+};
+
+const k_Positions = array<vec3f, 4>(
+  vec3f(1.0, 0.0, 0.0),
+  vec3f(1.0, 1.0, 0.0),
+  vec3f(0.0, 0.0, 0.0),
+  vec3f(0.0, 1.0, 0.0),
+);
+
+@vertex
+fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> VertexOut {
+  var output : VertexOut;
+  let pos = k_Positions[vertexIndex] * vec3<f32>(in.dimensions, 0) + vec3<f32>(in.position, 0);
+  output.position = vec4f(pos, 1.0);
+  return output;
+}
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) u32 {
+  return 1;
+}
+`;
+
 class BoxObstacle {
 	m_Timestep = 0;
 	m_Position = [0, 0];
@@ -406,6 +437,8 @@ class BackgroundRenderer {
 	m_AdvectVelocityPipeline = null;
 	m_DisplayVec2TexPipeline = null;
 	m_DisplayVec1TexPipeline = null;
+
+	m_DrawObstaclesPipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -772,6 +805,45 @@ class BackgroundRenderer {
 				cullMode: "back",
 			},
 		});
+
+		// const drawObstaclesPipelineLayout = this.m_Device.createPipelineLayout({
+		// 	bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout]
+		// });
+
+		// const drawObstaclesModule = this.m_Device.createShaderModule({
+		// 	code: k_DrawObstaclesMaskShader,
+		// });
+
+		// this.m_DrawObstaclesPipeline = this.m_Device.createRenderPipeline({
+		// 	label: "Draw obstacles pipeline",
+		// 	layout: drawObstaclesPipelineLayout,
+		// 	fragment: {
+		// 		module: drawObstaclesModule,
+		// 		targets: [{
+		// 			blend: {
+		// 				color: {
+		// 					srcFactor: "one",
+		// 					dstFactor: "zero",
+		// 					operation: "add"
+		// 				},
+		// 				alpha: {
+		// 					srcFactor: "one",
+		// 					dstFactor: "zero",
+		// 					operation: "add"
+		// 				}
+		// 			},
+		// 			format: "r32uint"
+		// 		}],
+		// 	},
+		// 	vertex: {
+		// 		module: drawObstaclesModule,
+		// 	},
+		// 	primitive: {
+		// 		topology: "triangle-strip",
+		// 		frontFace: "ccw",
+		// 		cullMode: "back",
+		// 	},
+		// });
 	}
 
 	m_ParamsBuffer = null;
@@ -867,16 +939,18 @@ class BackgroundRenderer {
 		});
 
 		this.m_ObstacleMask = this.m_Device.createTexture({
-			format: "r8uint",
+			format: "r32uint",
 			size: [this.m_SimWidth, this.m_SimHeight],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
 			label: "Obstacle Mask"
 		});
 		this.m_ObstacleMaskView = this.m_ObstacleMask.createView();
+
+		this.createObstacleInstanceBuffer();
 	}
 
 	createObstacleInstanceBuffer(objCount = 32) {
-		this.m_ObjectInstanceBuffer = this.m_Device.createBuffer({
+		this.m_ObstacleInstanceBuffer = this.m_Device.createBuffer({
 			label: "Object instance buffer",
 			size: k_ObstacleInstanceSize * objCount,
 			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.VERTEX
@@ -1234,8 +1308,18 @@ class BackgroundRenderer {
 			divergencePass.end();
 		}
 
+		// Clear pressure
+		// const pressureClearPass = commandEncoder.beginRenderPass({
+		// 	colorAttachments: [{
+		// 		loadOp: "clear",
+		// 		storeOp: "store",
+		// 		view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
+		// 		clearValue: [0, 0, 0, 1]
+		// 	}],
+		// });
+		// pressureClearPass.end();
+
 		// Get pressure
-		this.m_RenderingPressureA = false;
 		for (let i = 0; i < k_PressureSteps; ++i) {
 			this.m_RenderingPressureA = !this.m_RenderingPressureA;
 
