@@ -637,48 +637,27 @@ class BackgroundRenderer {
 		}
 
 		// Add forces
-		// {
-		// 	const addForcesPass = commandEncoder.beginRenderPass({
-		// 		colorAttachments: [{
-		// 			loadOp: "load",
-		// 			storeOp: "store",
-		// 			view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
-		// 		}],
-		// 	});
+		{
+			const addForcesPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: this.m_RenderingA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+				}],
+			});
 
-		// 	addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-		// 	addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
-		// 	addForcesPass.setPipeline(this.m_AddForcesPipeline);
+			addForcesPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
+			addForcesPass.setScissorRect(0, 0, k_Width, k_Height);
+			addForcesPass.setPipeline(this.m_AddForcesPipeline);
 
-		// 	addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
-		// 	addForcesPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
+			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
+			addForcesPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
 
-		// 	addForcesPass.draw(4);
-		// 	addForcesPass.end();
-		// }
+			addForcesPass.draw(4);
+			addForcesPass.end();
+		}
 
 		// Display velocity
-		// {
-		// 	const displayVelocityPass = commandEncoder.beginRenderPass({
-		// 		colorAttachments: [{
-		// 			loadOp: "clear",
-		// 			storeOp: "store",
-		// 			view: renderView,
-		// 			clearValue: [0, 0, 0, 1],
-		// 		}],
-		// 	});
-
-		// 	displayVelocityPass.setViewport(0, 0, k_Width, k_Height, 0, 1);
-		// 	displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-		// 	displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
-
-		// 	displayVelocityPass.setBindGroup(0, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
-
-		// 	displayVelocityPass.draw(4);
-		// 	displayVelocityPass.end();
-		// }
-
-		// Display forces
 		{
 			const displayVelocityPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
@@ -694,7 +673,7 @@ class BackgroundRenderer {
 			displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
 			displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayVelocityPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
+			displayVelocityPass.setBindGroup(1, this.m_RenderingA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
 
 			displayVelocityPass.draw(4);
 			displayVelocityPass.end();
