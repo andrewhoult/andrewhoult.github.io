@@ -7,6 +7,8 @@
 //
 
 const k_ResolutionScale = 0.5;
+const k_MaxWidth = 480;
+const k_MaxHeight = 377;
 
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
@@ -243,7 +245,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 
   let v = textureLoad(v_tex, texCoord).xy;
   
-  return vec4<f32>(abs(v), 0, 1);
+  return vec4<f32>(saturate(abs(v)), 0, 1);
 }
 `;
 
@@ -1180,6 +1182,11 @@ class BackgroundRenderer {
 		this.m_SimWidth = width * k_ResolutionScale;
 		this.m_SimHeight = height * k_ResolutionScale;
 
+		if (this.m_SimWidth > k_MaxWidth) this.m_SimWidth = k_MaxWidth;
+		if (this.m_SimHeight > k_MaxHeight) this.m_SimHeight = k_MaxHeight;
+
+		console.log(`Size: ${this.m_SimWidth}, ${this.m_SimHeight}`);
+
 		this.m_ParamsBuffer = this.m_Device.createBuffer({
 			size: 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -1601,8 +1608,10 @@ class BackgroundRenderer {
 		}
 
 		this.enforceVelocityBoundary(commandEncoder);
-
+		
 		this.projectStep(commandEncoder);
+		
+		this.enforceVelocityBoundary(commandEncoder);
 
 		// Display velocity
 		{
