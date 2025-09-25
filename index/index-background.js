@@ -2,8 +2,8 @@
 // Thanks to Jos Stam's paper "Real-Time Fluid Dynamics for Games"
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
-// I've adapted the algorithm presented there to run on the GPU by using Jacobian
-// solvers with swapping textures.
+// TODO: 
+// Wait for page load before starting. Red black Jacobian solver. Staggered grid velocities.
 //
 
 const k_ResolutionScale = 0.125;
@@ -368,6 +368,48 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> Verte
 @fragment
 fn fragment_main(in : VertexOut) -> @location(0) vec2<f32> {
   return vec2<f32>(in.velocity);
+}
+`;
+
+// Set velocity in the middle of a shape to 0
+const k_ModifyObstaclesVelocityShader = `
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
+@group(2) @binding(0) var mask_tex : texture_storage_2d<r32uint, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(v0_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
+
+  let mask 		= textureLoad(mask_tex, texelCoord).x;
+  let maskLeft 	= textureLoad(mask_tex, leftCoord).x;
+  let maskRight = textureLoad(mask_tex, rightCoord).x;
+  let maskDown 	= textureLoad(mask_tex, downCoord).x;
+  let maskUp 	= textureLoad(mask_tex, upCoord).x;
+
+  let isCentre = mask && (maskLeft || maskRight || maskDown || maskUp);
+  let mult = select(1, 0, isCentre);
+
+  let v = textureLoad(v0_tex, texelCoord).x;
+
+  return v * mult;
 }
 `;
 
