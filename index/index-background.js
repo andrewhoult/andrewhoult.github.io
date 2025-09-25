@@ -351,7 +351,7 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> Verte
   var output : VertexOut;
 
   let dim = vec2<f32>(in.dimensions);
-  let offset = vec2<f32>(0, 0);
+  let offset = vec2<f32>(in.position);
 
   var pos = k_Positions[vertexIndex];
   pos *= vec3<f32>(dim, 0);
@@ -977,6 +977,56 @@ class BackgroundRenderer {
 				cullMode: "back",
 			},
 		});
+
+		const drawObstaclesVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: []
+		});
+
+		const drawObstaclesVelocityModule = this.m_Device.createShaderModule({
+			code: k_DrawObstaclesVelocityShader,
+		});
+
+		this.m_DrawObstaclesVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Draw obstacles velocity pipeline",
+			layout: drawObstaclesVelocityPipelineLayout,
+			fragment: {
+				module: drawObstaclesVelocityModule,
+				targets: [{
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: drawObstaclesVelocityModule,
+				buffers: [
+					{
+						stepMode: "instance",
+						arrayStride: 24,
+						attributes: [
+							{
+								shaderLocation: 0,
+								offset: 0,
+								format: "float32x2",
+							},
+							{
+								shaderLocation: 1,
+								offset: 8,
+								format: "float32x2",
+							},
+							{
+								shaderLocation: 2,
+								offset: 16,
+								format: "float32x2",
+							},
+						],
+					}
+				]
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
 	}
 
 	m_ParamsBuffer = null;
@@ -997,6 +1047,8 @@ class BackgroundRenderer {
 
 	m_ObstacleMask = null;
 	m_ObstacleMaskView = null;
+	m_ObstacleVelocity = null;
+	m_ObstacleVelocityView = null;
 	m_ObstacleInstanceBuffer = null;
 
 	createResources(width, height) {
@@ -1079,6 +1131,14 @@ class BackgroundRenderer {
 		});
 		this.m_ObstacleMaskView = this.m_ObstacleMask.createView();
 
+		this.m_ObstacleVelocity = this.m_Device.createTexture({
+			format: "rg32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Obstacle Velocity"
+		});
+		this.m_ObstacleVelocityView = this.m_ObstacleVelocity.createView();
+
 		this.createObstacleInstanceBuffer();
 	}
 
@@ -1102,6 +1162,7 @@ class BackgroundRenderer {
 	m_PressureTexBindGroupB = null;
 
 	m_ObstacleMaskBindGroup = null;
+	m_ObstacleVelocityBindGroup = null;
 
 	createBindGroups() {
 		this.m_ParamsBindGroup = this.m_Device.createBindGroup({
@@ -1221,6 +1282,16 @@ class BackgroundRenderer {
 				}
 			]
 		});
+
+		this.m_ObstacleVelocityBindGroup = this.m_Device.createBindGroup({
+			layout: this.m_Vec2StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_ObstacleVelocity
+				}
+			]
+		});
 	}
 
 	async frame(timestep) {
@@ -1241,7 +1312,7 @@ class BackgroundRenderer {
 
 		const commandEncoder = this.m_Device.createCommandEncoder();
 
-		this.drawObstacles(commandEncoder);
+		this.drawObstacles(commandEncoder, deltaT);
 
 		// Set params
 		{
@@ -1383,51 +1454,7 @@ class BackgroundRenderer {
 
 		this.projectStep(commandEncoder);
 
-		// Display velocity
-		// {
-		// 	const displayVelocityPass = commandEncoder.beginRenderPass({
-		// 		colorAttachments: [{
-		// 			loadOp: "clear",
-		// 			storeOp: "store",
-		// 			view: renderView,
-		// 			clearValue: [0, 0, 0, 1],
-		// 		}],
-		// 	});
-
-		// 	displayVelocityPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
-		// 	displayVelocityPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-		// 	displayVelocityPass.setPipeline(this.m_DisplayVec2TexPipeline);
-
-		// 	displayVelocityPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-		// 	displayVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
-
-		// 	displayVelocityPass.draw(4);
-		// 	displayVelocityPass.end();
-		// }
-
-		// Display pressure
-		// {
-		// 	const displayPressurePass = commandEncoder.beginRenderPass({
-		// 		colorAttachments: [{
-		// 			loadOp: "clear",
-		// 			storeOp: "store",
-		// 			view: renderView,
-		// 			clearValue: [0, 0, 0, 1],
-		// 		}],
-		// 	});
-
-		// 	displayPressurePass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
-		// 	displayPressurePass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-		// 	displayPressurePass.setPipeline(this.m_DisplayVec1TexPipeline);
-
-		// 	displayPressurePass.setBindGroup(0, this.m_DebugParamsBindGroup);
-		// 	displayPressurePass.setBindGroup(1, this.m_RenderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
-
-		// 	displayPressurePass.draw(4);
-		// 	displayPressurePass.end();
-		// }
-
-		// Display obstacles
+		// Display obstacle velocity
 		{
 			const displayObstaclesPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
@@ -1440,10 +1467,10 @@ class BackgroundRenderer {
 
 			displayObstaclesPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
 			displayObstaclesPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-			displayObstaclesPass.setPipeline(this.m_DisplayVec1uTexPipeline);
+			displayObstaclesPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
 			displayObstaclesPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayObstaclesPass.setBindGroup(1, this.m_ObstacleMaskBindGroup);
+			displayObstaclesPass.setBindGroup(1, this.m_ObstacleVelocityBindGroup);
 
 			displayObstaclesPass.draw(4);
 			displayObstaclesPass.end();
@@ -1535,7 +1562,7 @@ class BackgroundRenderer {
 		elements.forEach(el => {
 			const rect = el.getBoundingClientRect();
 			if (this.m_BoxObstaclesDict[el.id]) {
-				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position];
+				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position[0], this.m_BoxObstaclesDict[el.id].m_Position[1]];
 				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left / this.m_Canvas.width, rect.top / this.m_Canvas.height];
 				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width / this.m_Canvas.width, rect.height / this.m_Canvas.height];
 
@@ -1570,8 +1597,8 @@ class BackgroundRenderer {
 			instanceData.setFloat32(offset + 4, value.m_Position[1], true);
 			instanceData.setFloat32(offset + 8, value.m_Dimensions[0], true);
 			instanceData.setFloat32(offset + 12, value.m_Dimensions[1], true);
-			instanceData.setFloat32(offset + 16, (value.m_Position[0] - value.m_Position[0]) / deltaT, true);
-			instanceData.setFloat32(offset + 20, (value.m_Position[1] - value.m_Position[1]) / deltaT, true);
+			instanceData.setFloat32(offset + 16, (value.m_Position[0] - value.m_LastPosition[0]) / deltaT, true);
+			instanceData.setFloat32(offset + 20, (value.m_Position[1] - value.m_LastPosition[1]) / deltaT, true);
 
 			offset += k_ObstacleInstanceSize;
 		});
@@ -1598,21 +1625,22 @@ class BackgroundRenderer {
 		maskPass.end();
 
 		// Draw to velocity
-		// const velPass = commandEncoder.beginRenderPass({
-		// 	colorAttachments: [{
-		// 		loadOp: "clear",
-		// 		storeOp: "store",
-		// 		view: this.m_ObstacleVelocityView,
-		// 		clearValue: [0, 0, 0, 1]
-		// 	}],
-		// });
+		const velPass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "clear",
+				storeOp: "store",
+				view: this.m_ObstacleVelocityView,
+				clearValue: [0, 0, 0, 1]
+			}],
+		});
 
-		// velPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-		// velPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-		// velPass.setPipeline(this.m_DrawObstaclesVelocityPipeline);
+		velPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		velPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		velPass.setPipeline(this.m_DrawObstaclesVelocityPipeline);
+		velPass.setVertexBuffer(0, this.m_ObstacleInstanceBuffer);
 
-		// velPass.draw(4, obstacles.length);
+		velPass.draw(4, obstacles.length);
 
-		// velPass.end();
+		velPass.end();
 	}
 }
