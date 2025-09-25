@@ -6,7 +6,7 @@
 // Wait for page load before starting. Red black Jacobian solver. Staggered grid velocities.
 //
 
-const k_ResolutionScale = 0.125;
+const k_ResolutionScale = 0.5;
 
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
@@ -404,12 +404,36 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let maskDown 	= textureLoad(mask_tex, downCoord).x;
   let maskUp 	= textureLoad(mask_tex, upCoord).x;
 
-  let isCentre = mask && (maskLeft || maskRight || maskDown || maskUp);
-  let mult = select(1, 0, isCentre);
+  let isEdge = mask != 0 && (maskLeft != maskRight || maskDown != maskUp);
+  let velMult = select(0.0, 1.0, isEdge);
 
-  let v = textureLoad(v0_tex, texelCoord).x;
+  let v = textureLoad(v0_tex, texelCoord).xy;
 
-  return v * mult;
+  return v * velMult;
+}
+`;
+
+// Enforce boundary condition
+const k_EnforceBoundaryVelocityShader = `
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
+@group(2) @binding(0) var boundvel_tex : texture_storage_2d<rg32float, read>;
+@group(3) @binding(0) var mask : texture_storage_2d<r32uint, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
+  let texelCoord = vec2<i32>(fragCoord.xy);
+  let v = textureLoad(v0_tex, texelCoord).xy;
+  let b = textureLoad(boundvel_tex, texelCoord).xy;
+  let m = f32(textureLoad(mask, texelCoord).x);
+
+  return b * m + v * (1 - m);
 }
 `;
 
@@ -557,6 +581,9 @@ class BackgroundRenderer {
 	m_DisplayVec1uTexPipeline = null;
 
 	m_DrawObstaclesMaskPipeline = null;
+	m_DrawObstaclesVelocityPipeline = null;
+	m_ModifyObstaclesVelocityPipeline = null;
+	m_EnforceBoundaryVelocityPipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -1069,6 +1096,60 @@ class BackgroundRenderer {
 				cullMode: "back",
 			},
 		});
+
+		const modifyObstaclesVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+		});
+
+		const modifyObstaclesVelocityModule = this.m_Device.createShaderModule({
+			code: k_ModifyObstaclesVelocityShader,
+		});
+
+		this.m_ModifyObstaclesVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Modify obstacles velocity pipeline",
+			layout: modifyObstaclesVelocityPipelineLayout,
+			fragment: {
+				module: modifyObstaclesVelocityModule,
+				targets: [{
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const enforceBoundaryVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+		});
+
+		const enforceBoundaryVelocityModule = this.m_Device.createShaderModule({
+			code: k_EnforceBoundaryVelocityShader,
+		});
+
+		this.m_EnforceBoundaryVelocityPipeline = this.m_Device.createRenderPipeline({
+			label: "Enforce boundary velocity pipeline",
+			layout: enforceBoundaryVelocityPipelineLayout,
+			fragment: {
+				module: enforceBoundaryVelocityModule,
+				targets: [{
+					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
 	}
 
 	m_ParamsBuffer = null;
@@ -1091,6 +1172,8 @@ class BackgroundRenderer {
 	m_ObstacleMaskView = null;
 	m_ObstacleVelocity = null;
 	m_ObstacleVelocityView = null;
+	m_ObstacleVelocity2 = null;
+	m_ObstacleVelocityView2 = null;
 	m_ObstacleInstanceBuffer = null;
 
 	createResources(width, height) {
@@ -1181,6 +1264,14 @@ class BackgroundRenderer {
 		});
 		this.m_ObstacleVelocityView = this.m_ObstacleVelocity.createView();
 
+		this.m_ObstacleVelocity2 = this.m_Device.createTexture({
+			format: "rg32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+			label: "Obstacle Velocity 2"
+		});
+		this.m_ObstacleVelocityView2 = this.m_ObstacleVelocity2.createView();
+
 		this.createObstacleInstanceBuffer();
 	}
 
@@ -1205,6 +1296,7 @@ class BackgroundRenderer {
 
 	m_ObstacleMaskBindGroup = null;
 	m_ObstacleVelocityBindGroup = null;
+	m_ObstacleVelocityBindGroup2 = null;
 
 	createBindGroups() {
 		this.m_ParamsBindGroup = this.m_Device.createBindGroup({
@@ -1334,6 +1426,16 @@ class BackgroundRenderer {
 				}
 			]
 		});
+
+		this.m_ObstacleVelocityBindGroup2 = this.m_Device.createBindGroup({
+			layout: this.m_Vec2StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_ObstacleVelocity2
+				}
+			]
+		});
 	}
 
 	async frame(timestep) {
@@ -1446,6 +1548,8 @@ class BackgroundRenderer {
 			addForcesPass.end();
 		}
 
+		this.enforceVelocityBoundary(commandEncoder);
+
 		// Diffuse velocity
 		for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
 			this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
@@ -1467,6 +1571,8 @@ class BackgroundRenderer {
 
 			diffuseStepPass.draw(4);
 			diffuseStepPass.end();
+
+			this.enforceVelocityBoundary(commandEncoder);
 		}
 
 		this.projectStep(commandEncoder);
@@ -1494,11 +1600,13 @@ class BackgroundRenderer {
 			advectVelocityPass.end();
 		}
 
+		this.enforceVelocityBoundary(commandEncoder);
+
 		this.projectStep(commandEncoder);
 
-		// Display obstacle velocity
+		// Display velocity
 		{
-			const displayObstaclesPass = commandEncoder.beginRenderPass({
+			const displayPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "clear",
 					storeOp: "store",
@@ -1507,20 +1615,44 @@ class BackgroundRenderer {
 				}],
 			});
 
-			displayObstaclesPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
-			displayObstaclesPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-			displayObstaclesPass.setPipeline(this.m_DisplayVec2TexPipeline);
+			displayPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+			displayPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+			displayPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
-			displayObstaclesPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayObstaclesPass.setBindGroup(1, this.m_ObstacleVelocityBindGroup);
+			displayPass.setBindGroup(0, this.m_DebugParamsBindGroup);
+			displayPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
 
-			displayObstaclesPass.draw(4);
-			displayObstaclesPass.end();
+			displayPass.draw(4);
+			displayPass.end();
 		}
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
 		window.requestAnimationFrame(this.frame);
+	}
+
+	enforceVelocityBoundary(commandEncoder) {
+		this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
+
+		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "load",
+				storeOp: "store",
+				view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+			}],
+		});
+
+		enforceBoundaryVelPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		enforceBoundaryVelPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		enforceBoundaryVelPass.setPipeline(this.m_EnforceBoundaryVelocityPipeline);
+
+		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
+		enforceBoundaryVelPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
+		enforceBoundaryVelPass.setBindGroup(2, this.m_ObstacleVelocityBindGroup2);
+		enforceBoundaryVelPass.setBindGroup(3, this.m_ObstacleMaskBindGroup);
+
+		enforceBoundaryVelPass.draw(4);
+		enforceBoundaryVelPass.end();
 	}
 
 	projectStep(commandEncoder) {
@@ -1684,5 +1816,27 @@ class BackgroundRenderer {
 		velPass.draw(4, obstacles.length);
 
 		velPass.end();
+
+		// Velocity edge detection
+		const edgePass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "clear",
+				storeOp: "store",
+				view: this.m_ObstacleVelocityView2,
+				clearValue: [0, 0, 0, 1]
+			}],
+		});
+
+		edgePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		edgePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		edgePass.setPipeline(this.m_ModifyObstaclesVelocityPipeline);
+
+		edgePass.setBindGroup(0, this.m_ParamsBindGroup);
+		edgePass.setBindGroup(1, this.m_ObstacleVelocityBindGroup);
+		edgePass.setBindGroup(2, this.m_ObstacleMaskBindGroup);
+
+		edgePass.draw(4);
+
+		edgePass.end();
 	}
 }
