@@ -309,7 +309,7 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> Verte
   var output : VertexOut;
 
   let dim = vec2<f32>(in.dimensions);
-  let offset = vec2<f32>(0, 0);
+  let offset = vec2<f32>(in.position);
 
   var pos = k_Positions[vertexIndex];
   pos *= vec3<f32>(dim, 0);
@@ -954,6 +954,7 @@ class BackgroundRenderer {
 				module: drawObstaclesMaskModule,
 				buffers: [
 					{
+						stepMode: "instance",
 						arrayStride: 24,
 						attributes: [
 							{
@@ -1538,9 +1539,6 @@ class BackgroundRenderer {
 				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left / this.m_Canvas.width, rect.top / this.m_Canvas.height];
 				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width / this.m_Canvas.width, rect.height / this.m_Canvas.height];
 
-				this.m_BoxObstaclesDict[el.id].m_Position = [0, 0];
-				this.m_BoxObstaclesDict[el.id].m_Dimensions = [0.5, 0.5];
-
 				this.m_Timestep = timestep;
 			} else {
 				console.log(`${rect.left}, ${rect.top}, ${rect.width}, ${rect.height}`);
@@ -1568,19 +1566,12 @@ class BackgroundRenderer {
 
 		let offset = 0;
 		obstacles.forEach(([key, value]) => {
-			instanceData.setFloat32(0, value.m_Position[0], true);
-			instanceData.setFloat32(4, value.m_Position[1], true);
-			instanceData.setFloat32(8, value.m_Dimensions[0], true);
-			instanceData.setFloat32(12, value.m_Dimensions[1], true);
-			instanceData.setFloat32(16, (value.m_Position[0] - value.m_Position[0]) / deltaT, true);
-			instanceData.setFloat32(20, (value.m_Position[1] - value.m_Position[1]) / deltaT, true);
-
-			instanceData.setFloat32(offset + 0, 0, true);
-			instanceData.setFloat32(offset + 4, 0, true);
-			instanceData.setFloat32(offset + 8, 1, true);
-			instanceData.setFloat32(offset + 12, 1, true);
-			instanceData.setFloat32(offset + 16, 0, true);
-			instanceData.setFloat32(offset + 20, 0, true);
+			instanceData.setFloat32(offset + 0, value.m_Position[0], true);
+			instanceData.setFloat32(offset + 4, value.m_Position[1], true);
+			instanceData.setFloat32(offset + 8, value.m_Dimensions[0], true);
+			instanceData.setFloat32(offset + 12, value.m_Dimensions[1], true);
+			instanceData.setFloat32(offset + 16, (value.m_Position[0] - value.m_Position[0]) / deltaT, true);
+			instanceData.setFloat32(offset + 20, (value.m_Position[1] - value.m_Position[1]) / deltaT, true);
 
 			offset += k_ObstacleInstanceSize;
 		});
