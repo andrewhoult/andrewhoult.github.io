@@ -427,20 +427,26 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 `;
 
 class TexRef {
+	m_LastUseTimestep = 0;
 	m_Tex = null;
 	m_View = null;
 	m_BindGroup = null;
-	m_LastUseTimestep = 0;
+	m_SampledBindGroup = null;
 }
 
 class TexturePool {
+	m_Device = null;
 	m_Dict = {};
+
+	constructor(device) {
+		this.m_Device = device;
+	}
 
 	getKey(type, w, h) {
 		return `${type}-${w}-${h}`;
 	}
 
-	acquireTex(type, w, h, timestep, isSampled = false) {
+	acquireTex(type, w, h, timestep, layout, sampler = null, sampledLayout = null) {
 		const key = this.getKey(type, w, h);
 		if (!this.m_Dict[key]) {
 			this.m_Dict[key] = {
@@ -451,6 +457,43 @@ class TexturePool {
 		if (this.m_Dict[key].pool.length == 0) {
 			// create tex
 			console.log("Creating tex: " + key);
+
+			let texRef = new TexRef();
+			texRef.m_LastUseTimestep = timestep;
+
+			texRef.m_Tex = this.m_Device.createTexture({
+				format: type,
+				size: [this.m_SimWidth, this.m_SimHeight],
+				usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+
+			});
+			texRef.m_View = texRef.m_Tex.createView();
+
+			texRef.m_SampledBindGroup = this.m_Device.createBindGroup({
+				layout: layout,
+				entries: [
+					{
+						binding: 0,
+						resource: texRef.m_View
+					},
+				]
+			});
+
+			if (sampler) {
+				texRef.m_SampledBindGroup = this.m_Device.createBindGroup({
+					layout: sampledLayout,
+					entries: [
+						{
+							binding: 0,
+							resource: texRef.m_View
+						},
+						{
+							binding: 1,
+							resource: sampler
+						}
+					]
+				});
+			}
 		}
 
 		return this.m_Dict[key].pool.pop();
@@ -462,14 +505,15 @@ class TexturePool {
 	}
 
 	clearStale(timestep) {
-		const entries = this.m_Dict.entries;
-		if (!entries) return;
+		// const entries = this.m_Dict.entries;
+		// if (!entries) return;
 
-		entries.forEach((key, value) => {
-			if (value.m_LastUseTimestep < timestep) {
-				delete this.m_Dict[key];
-			}
-		});
+		// entries.forEach((key, value) => {
+		// 	if (value.m_LastUseTimestep < timestep) {
+		// 		console.log("Deleting ")
+		// 		delete this.m_Dict[key];
+		// 	}
+		// });
 	}
 }
 
@@ -500,7 +544,7 @@ class BackgroundRenderer {
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
-	m_TexturePool = new TexturePool();
+	m_TexturePool = null;
 	m_BoxObstaclesDict = {};
 
 	async init(canvas) {
@@ -554,6 +598,8 @@ class BackgroundRenderer {
 		this.frame = this.frame.bind(this);
 
 		this.createPipelines();
+
+		this.m_TexturePool = new TexturePool(this.m_Device);
 
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
@@ -1131,8 +1177,6 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
-	m_VelocityTexA = null;
-	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
 	m_VelocityTexViewB = null;
 	m_DivergenceTex = null;
@@ -1171,23 +1215,6 @@ class BackgroundRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
 		});
-
-		this.m_VelocityTexA = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-			label: "Velocity Texture A",
-
-		});
-		this.m_VelocityTexViewA = this.m_VelocityTexA.createView();
-
-		this.m_VelocityTexB = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-			label: "Velocity Texture B"
-		});
-		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
 
 		this.m_DivergenceTex = this.m_Device.createTexture({
 			format: "r32float",
@@ -1257,10 +1284,6 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
-	m_VelocityStorageTexBindGroupA = null;
-	m_VelocityStorageTexBindGroupB = null;
-	m_VelocitySampledTexBindGroupA = null;
-	m_VelocitySampledTexBindGroupB = null;
 	m_DivergenceTexBindGroup = null;
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
@@ -1286,54 +1309,6 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
-				}
-			]
-		});
-
-		this.m_VelocityStorageTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexA
-				}
-			]
-		});
-
-		this.m_VelocityStorageTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexB
-				}
-			]
-		});
-
-		this.m_VelocitySampledTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_SampledTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexViewA
-				},
-				{
-					binding: 1,
-					resource: this.m_Sampler
-				}
-			]
-		});
-
-		this.m_VelocitySampledTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_SampledTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexViewB
-				},
-				{
-					binding: 1,
-					resource: this.m_Sampler
 				}
 			]
 		});
