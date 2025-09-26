@@ -15,6 +15,8 @@ const k_PressureSteps = 20;
 
 const k_ObstacleInstanceSize = 24;
 
+const k_TeleportThreshold = 100;
+
 let g_BackgroundRenderer;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -41,27 +43,6 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
   let pos = k_Positions[vertexIndex];
   output.position = vec4f(pos, 1.0);
   return output;
-}
-`;
-
-// Add forces from force texture to velocity texture
-// Additive blending required
-// Renders to v0_tex
-const k_AddForcesShader = `
-struct Params {
-  resolution : vec2<i32>,
-  dT : f32,
-  _pad : i32,
-};
-
-@group(0) @binding(0) var<uniform> params : Params;
-@group(1) @binding(0) var sources : texture_storage_2d<rg32float, read>;
-
-@fragment
-fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
-  let texelCoord = vec2<i32>(fragCoord.xy);
-  let source 	 = textureLoad(sources, texelCoord).xy;
-  return params.dT * source; // Additive blending required
 }
 `;
 
@@ -265,7 +246,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 
   let v = textureLoad(v_tex, texCoord).x;
   
-  return vec4<f32>(0, 0, v, 1);
+  return vec4<f32>(0, 0, abs(v), 1);
 }
 `;
 
@@ -466,10 +447,6 @@ class BackgroundRenderer {
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
-	m_MouseU = 0;
-	m_MouseV = 0;
-	m_IsMouseDown = false;
-
 	m_BoxObstaclesDict = {};
 
 	async init(canvas) {
@@ -545,22 +522,6 @@ class BackgroundRenderer {
 			}
 		});
 
-		window.addEventListener('mousemove', (event) => {
-			const rect = canvas.getBoundingClientRect();
-			const x = event.clientX - rect.left;
-			const y = event.clientY - rect.top;
-			const u = x / rect.width;
-			const v = y / rect.height;
-			this.m_MouseU = Math.min(Math.max(u, 0), 1);
-			this.m_MouseV = Math.min(Math.max(v, 0), 1);
-		});
-
-		window.addEventListener('mousedown', (event) => {
-			if (event.button === 0) {
-				this.m_IsMouseDown = !this.m_IsMouseDown;
-			}
-		});
-
 		resizeObserver.observe(this.m_Canvas);
 		window.requestAnimationFrame(this.frame);
 	}
@@ -571,7 +532,6 @@ class BackgroundRenderer {
 	m_Vec1uStorageTexBindGroupLayout = null;
 	m_SampledTexBindGroupLayout = null;
 
-	m_AddForcesPipeline = null;
 	m_DiffuseVelocityPipeline = null;
 	m_GetDivergencePipeline = null;
 	m_CalcPressureStepPipeline = null;
@@ -654,45 +614,6 @@ class BackgroundRenderer {
 					sampler: {},
 				},
 			]
-		});
-
-		const addForcesPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
-		});
-
-		const addForcesModule = this.m_Device.createShaderModule({
-			code: k_AddForcesShader,
-		});
-
-		this.m_AddForcesPipeline = this.m_Device.createRenderPipeline({
-			label: "Add forces pipeline",
-			layout: addForcesPipelineLayout,
-			fragment: {
-				module: addForcesModule,
-				targets: [{
-					blend: {
-						color: {
-							srcFactor: "one",
-							dstFactor: "one",
-							operation: "add"
-						},
-						alpha: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						}
-					},
-					format: "rg32float"
-				}],
-			},
-			vertex: {
-				module: vertexShaderModule,
-			},
-			primitive: {
-				topology: "triangle-strip",
-				frontFace: "ccw",
-				cullMode: "back",
-			},
 		});
 
 		const diffuseVelocityPipelineLayout = this.m_Device.createPipelineLayout({
@@ -1156,8 +1077,6 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
-	m_ForcesTex = null;
-	m_ForcesTexView = null;
 	m_VelocityTexA = null;
 	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
@@ -1198,14 +1117,6 @@ class BackgroundRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
 		});
-
-		this.m_ForcesTex = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_DST,
-			label: "Forces Texture"
-		});
-		this.m_ForcesTexView = this.m_ForcesTex.createView();
 
 		this.m_VelocityTexA = this.m_Device.createTexture({
 			format: "rg32float",
@@ -1292,7 +1203,6 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
-	m_ForcesStorageTexBindGroup = null;
 	m_VelocityStorageTexBindGroupA = null;
 	m_VelocityStorageTexBindGroupB = null;
 	m_VelocitySampledTexBindGroupA = null;
@@ -1322,16 +1232,6 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
-				}
-			]
-		});
-
-		this.m_ForcesStorageTexBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_ForcesTex
 				}
 			]
 		});
@@ -1477,51 +1377,6 @@ class BackgroundRenderer {
 			this.m_Device.queue.writeBuffer(this.m_ParamsBuffer, 0, paramsView);
 		}
 
-		// Clear forces
-		{
-			const clearForcesCommandEncoder = this.m_Device.createCommandEncoder();
-			const clearForcesPass = clearForcesCommandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "clear",
-					storeOp: "store",
-					view: this.m_ForcesTexView,
-					clearValue: [0, 0, 0, 0],
-				}],
-			});
-
-			clearForcesPass.end();
-			this.m_Device.queue.submit([clearForcesCommandEncoder.finish()]);
-		}
-
-		// Set forces at mouse
-		if (this.m_IsMouseDown) {
-			const scale = 200;
-			let forcesView = new DataView(new ArrayBuffer(16));
-			forcesView.setFloat32(0, 0, true);
-			forcesView.setFloat32(4, scale, true);
-
-			forcesView.setFloat32(8, 0, true);
-			forcesView.setFloat32(12, 0, true);
-
-			const x = Math.min(Math.max(this.m_MouseU * this.m_SimWidth, 0), this.m_SimWidth - 1);
-			const y = Math.min(Math.max(this.m_MouseV * this.m_SimHeight, 0), this.m_SimHeight - 2);
-
-			this.m_Device.queue.writeTexture(
-				{
-					origin: [x, y, 0],
-					texture: this.m_ForcesTex
-				},
-				forcesView,
-				{
-					bytesPerRow: 8,
-				},
-				{
-					width: 1,
-					height: 2,
-				}
-			);
-		}
-
 		// Set debug params
 		{
 			let paramsView = new DataView(new ArrayBuffer(16));
@@ -1532,27 +1387,6 @@ class BackgroundRenderer {
 			paramsView.setInt32(12, this.m_SimHeight, true);
 
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
-		}
-
-		// Add forces
-		{
-			const addForcesPass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "load",
-					storeOp: "store",
-					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
-				}],
-			});
-
-			addForcesPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-			addForcesPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-			addForcesPass.setPipeline(this.m_AddForcesPipeline);
-
-			addForcesPass.setBindGroup(0, this.m_ParamsBindGroup);
-			addForcesPass.setBindGroup(1, this.m_ForcesStorageTexBindGroup);
-
-			addForcesPass.draw(4);
-			addForcesPass.end();
 		}
 
 		this.enforceVelocityBoundary(commandEncoder);
@@ -1608,9 +1442,9 @@ class BackgroundRenderer {
 		}
 
 		this.enforceVelocityBoundary(commandEncoder);
-		
+
 		this.projectStep(commandEncoder);
-		
+
 		this.enforceVelocityBoundary(commandEncoder);
 
 		// Display velocity
@@ -1780,8 +1614,15 @@ class BackgroundRenderer {
 			instanceData.setFloat32(offset + 4, value.m_Position[1], true);
 			instanceData.setFloat32(offset + 8, value.m_Dimensions[0], true);
 			instanceData.setFloat32(offset + 12, value.m_Dimensions[1], true);
-			instanceData.setFloat32(offset + 16, (value.m_Position[0] - value.m_LastPosition[0]) / deltaT, true);
-			instanceData.setFloat32(offset + 20, (value.m_Position[1] - value.m_LastPosition[1]) / deltaT, true);
+
+			let deltaX = (value.m_Position[0] - value.m_LastPosition[0]) / deltaT;
+			let deltaY = (value.m_Position[1] - value.m_LastPosition[1]) / deltaT;
+
+			if (Math.abs(deltaX) > k_TeleportThreshold || deltaT == 0) deltaX = 0;
+			if (Math.abs(deltaY) > k_TeleportThreshold || deltaT == 0) deltaY = 0;
+
+			instanceData.setFloat32(offset + 16, deltaX, true);
+			instanceData.setFloat32(offset + 20, deltaY, true);
 
 			offset += k_ObstacleInstanceSize;
 		});
