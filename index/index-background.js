@@ -426,6 +426,53 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 }
 `;
 
+class TexRef {
+	m_Tex = null;
+	m_View = null;
+	m_BindGroup = null;
+	m_LastUseTimestep = 0;
+}
+
+class TexturePool {
+	m_Dict = {};
+
+	getKey(type, w, h) {
+		return `${type}-${w}-${h}`;
+	}
+
+	acquireTex(type, w, h, timestep, isSampled = false) {
+		const key = this.getKey(type, w, h);
+		if (!this.m_Dict[key]) {
+			this.m_Dict[key] = {
+				pool: [],
+			}
+		}
+
+		if (this.m_Dict[key].pool.length == 0) {
+			// create tex
+			console.log("Creating tex: " + key);
+		}
+
+		return this.m_Dict[key].pool.pop();
+	}
+
+	releaseTex(texRef) {
+		const key = this.getKey(type, w, h);
+		this.m_Dict[key].pool.push(texRef);
+	}
+
+	clearStale(timestep) {
+		const entries = this.m_Dict.entries;
+		if (!entries) return;
+
+		entries.forEach((key, value) => {
+			if (value.m_LastUseTimestep < timestep) {
+				delete this.m_Dict[key];
+			}
+		});
+	}
+}
+
 class BoxObstacle {
 	m_Timestep = 0;
 	m_Position = [0, 0];
@@ -453,6 +500,7 @@ class BackgroundRenderer {
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
+	m_TexturePool = new TexturePool();
 	m_BoxObstaclesDict = {};
 
 	async init(canvas) {
@@ -1354,6 +1402,7 @@ class BackgroundRenderer {
 	async frame(timestep) {
 		if (!this.m_IsReady) {
 			this.m_PrevTimeStep = timestep;
+			this.m_TexturePool.clearStale(timestep);
 			window.requestAnimationFrame(this.frame);
 			return;
 		}
@@ -1477,6 +1526,7 @@ class BackgroundRenderer {
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
+		this.m_TexturePool.clearStale(timestep);
 		window.requestAnimationFrame(this.frame);
 	}
 
