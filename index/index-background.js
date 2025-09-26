@@ -15,7 +15,9 @@ const k_PressureSteps = 20;
 
 const k_ObstacleInstanceSize = 24;
 
-const k_TeleportThreshold = 100;
+const k_TeleportThreshold = 10;
+
+const k_Inset = 0;
 
 let g_BackgroundRenderer;
 
@@ -49,7 +51,8 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
 // Jacobian solver step to diffuse velocity
 // Renders to v1_tex, swap each iteration
 const k_DiffuseVelocityStepShader = `
-override viscosity: f32 = 0.2; // m^2/s
+override viscosity: f32 = 0.002; // m^2/s
+override omega: f32 = 1.9;
 
 struct Params {
   resolution : vec2<i32>,
@@ -83,7 +86,10 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let v0Down 	= textureLoad(v0_tex, downCoord).xy;
   let v0Up 		= textureLoad(v0_tex, upCoord).xy;
 
-  let v1 = (v0 + a * (v0Left + v0Right + v0Down + v0Up)) / (1.0 + 4.0 * a);
+  var v1 = (v0 + a * (v0Left + v0Right + v0Down + v0Up)) / (1.0 + 4.0 * a);
+
+  // Over-relaxation
+  v1 = mix(v0, v1, omega);
 
   return v1;
 }
@@ -1578,15 +1584,28 @@ class BackgroundRenderer {
 		const elements = document.querySelectorAll("fluid-box");
 		elements.forEach(el => {
 			const rect = el.getBoundingClientRect();
-			if (this.m_BoxObstaclesDict[el.id]) {
-				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position[0], this.m_BoxObstaclesDict[el.id].m_Position[1]];
-				this.m_BoxObstaclesDict[el.id].m_Position = [rect.left / this.m_Canvas.width, rect.top / this.m_Canvas.height];
-				this.m_BoxObstaclesDict[el.id].m_Dimensions = [rect.width / this.m_Canvas.width, rect.height / this.m_Canvas.height];
 
-				this.m_Timestep = timestep;
+			let exists = this.m_BoxObstaclesDict[el.id] != undefined;
+			if (exists) {
+				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position[0], this.m_BoxObstaclesDict[el.id].m_Position[1]];
 			} else {
 				console.log(`${rect.left}, ${rect.top}, ${rect.width}, ${rect.height}`);
 				this.m_BoxObstaclesDict[el.id] = new BoxObstacle(rect.left, rect.top, rect.width, rect.height, timestep);
+			}
+
+			let x = (rect.left + k_Inset) / this.m_Canvas.width;
+			let y = (rect.top + k_Inset) / this.m_Canvas.height;
+
+			let w = (rect.width - k_Inset * 2) / this.m_Canvas.width;
+			let h = (rect.height - k_Inset * 2) / this.m_Canvas.height;
+
+			this.m_BoxObstaclesDict[el.id].m_Position = [x, y];
+			this.m_BoxObstaclesDict[el.id].m_Dimensions = [w, h];
+
+			this.m_Timestep = timestep;
+
+			if (!exists) {
+				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position[0], this.m_BoxObstaclesDict[el.id].m_Position[1]];
 			}
 		});
 

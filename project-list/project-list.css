@@ -37,6 +37,12 @@
 	}
 }
 
+/* @media (hover: hover) {
+	.project-card-container .project-card {
+		background: rgb(0, 0, 0);
+	}
+} */
+
 .project-card img {
 	display: block;
 	margin: 0px;
