@@ -84,6 +84,13 @@ a {
 	color: #f2e3cc;
 }
 
+.download-icon {
+	vertical-align: bottom;
+	margin-left: 4px;
+	margin-right: 4px;
+	padding-bottom: 3px;
+}
+
 p {
 	color: #f2e3cc;
 	font-family: "Roboto";
