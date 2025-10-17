@@ -49,7 +49,7 @@ html {
 	}
 }
 
-@media screen and (min-width: 1560px) {
+@media screen and (min-width: 1559px) {
 	.show-mobile {
 		display: none;
 	}
