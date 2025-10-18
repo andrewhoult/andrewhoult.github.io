@@ -2,14 +2,15 @@
 // Thanks to Jos Stam's paper "Real-Time Fluid Dynamics for Games"
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
-// TODO: 
-// #1 Adopt velocity texture to texture pool. They need special treatment because they exist over multiple frames.
-// Adopt all to texture pool.Remove old texture handles and such.Red black Jacobian solver.Staggered grid velocities.
+// TODO:
+// Adopt all to texture pool.
+// Compute shaders.
+// Red black Jacobian solver.
+// Staggered grid velocities.
 //
 
 const k_ResolutionScale = 0.5;
-const k_MaxWidth = 480;
-const k_MaxHeight = 377;
+const k_MaxPixels = 512 * 512;
 
 const k_VelocityDiffuseSteps = 20;
 const k_PressureSteps = 20;
@@ -1253,8 +1254,15 @@ class BackgroundRenderer {
 		this.m_SimWidth = width * k_ResolutionScale;
 		this.m_SimHeight = height * k_ResolutionScale;
 
-		if (this.m_SimWidth > k_MaxWidth) this.m_SimWidth = k_MaxWidth;
-		if (this.m_SimHeight > k_MaxHeight) this.m_SimHeight = k_MaxHeight;
+		const pixels = this.m_SimWidth * this.m_SimHeight;
+		if (pixels > k_MaxPixels) {
+			const ratio = k_MaxPixels / pixels;
+			this.m_SimWidth *= ratio;
+			this.m_SimHeight *= ratio;
+		}
+
+		this.m_SimWidth = Math.round(this.m_SimWidth);
+		this.m_SimHeight = Math.round(this.m_SimHeight);
 
 		console.log(`Size: ${this.m_SimWidth}, ${this.m_SimHeight}`);
 
