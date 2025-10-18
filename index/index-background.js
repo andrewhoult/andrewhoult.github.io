@@ -1150,10 +1150,6 @@ class BackgroundRenderer {
 	m_DebugParamsBuffer = null;
 	m_Sampler = null;
 
-	m_ObstacleVelocity = null;
-	m_ObstacleVelocityView = null;
-	m_ObstacleVelocity2 = null;
-	m_ObstacleVelocityView2 = null;
 	m_ObstacleInstanceBuffer = null;
 
 	createResources(width, height) {
@@ -1191,22 +1187,6 @@ class BackgroundRenderer {
 			minFilter: "linear",
 		});
 
-		this.m_ObstacleVelocity = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Obstacle Velocity"
-		});
-		this.m_ObstacleVelocityView = this.m_ObstacleVelocity.createView();
-
-		this.m_ObstacleVelocity2 = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Obstacle Velocity 2"
-		});
-		this.m_ObstacleVelocityView2 = this.m_ObstacleVelocity2.createView();
-
 		this.createObstacleInstanceBuffer();
 	}
 
@@ -1220,9 +1200,6 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
-
-	m_ObstacleVelocityBindGroup = null;
-	m_ObstacleVelocityBindGroup2 = null;
 
 	createBindGroups() {
 		this.m_ParamsBindGroup = this.m_Device.createBindGroup({
@@ -1241,26 +1218,6 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
-				}
-			]
-		});
-
-		this.m_ObstacleVelocityBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_ObstacleVelocity
-				}
-			]
-		});
-
-		this.m_ObstacleVelocityBindGroup2 = this.m_Device.createBindGroup({
-			layout: this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_ObstacleVelocity2
 				}
 			]
 		});
@@ -1305,7 +1262,7 @@ class BackgroundRenderer {
 
 		const commandEncoder = this.m_Device.createCommandEncoder();
 
-		const obstacleTextures = this.drawObstacles(commandEncoder, deltaT);
+		let obstacleVelocityTex = this.drawObstacles(commandEncoder, deltaT);
 
 		// Set params
 		{
@@ -1331,7 +1288,7 @@ class BackgroundRenderer {
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
 
 		// Diffuse velocity
 		{
@@ -1363,7 +1320,7 @@ class BackgroundRenderer {
 				this.m_TexturePool.release(old);
 
 				// acts as the swap
-				this.enforceVelocityBoundary(commandEncoder);
+				this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
 			}
 		}
 
@@ -1398,9 +1355,12 @@ class BackgroundRenderer {
 			this.m_TexturePool.release(old);
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
 		this.projectStep(commandEncoder);
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
+
+		this.m_TexturePool.release(obstacleVelocityTex);
+		obstacleVelocityTex = null;
 
 		// Display velocity
 		{
@@ -1431,7 +1391,7 @@ class BackgroundRenderer {
 		this.m_TexturePool.checkBalance();
 	}
 
-	enforceVelocityBoundary(commandEncoder) {
+	enforceVelocityBoundary(commandEncoder, obstacleVelocityTex) {
 		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
 
 		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
@@ -1448,7 +1408,7 @@ class BackgroundRenderer {
 
 		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
 		enforceBoundaryVelPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
-		enforceBoundaryVelPass.setBindGroup(2, this.m_ObstacleVelocityBindGroup2);
+		enforceBoundaryVelPass.setBindGroup(2, obstacleVelocityTex.m_StorageBindGroup);
 
 		enforceBoundaryVelPass.draw(4);
 		enforceBoundaryVelPass.end();
@@ -1623,12 +1583,15 @@ class BackgroundRenderer {
 
 		this.m_Device.queue.writeBuffer(this.m_ObstacleInstanceBuffer, 0, instanceData);
 
+		let obstacleVelocityTex = this.m_TexturePool.acquire("rg32float");
+		let obstacleVelocityTex2 = this.m_TexturePool.acquire("rg32float");
+
 		// Draw to velocity
 		const velPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "clear",
 				storeOp: "store",
-				view: this.m_ObstacleVelocityView,
+				view: obstacleVelocityTex.m_View,
 				clearValue: [9999, 9999, 0, 1]
 			}],
 		});
@@ -1647,7 +1610,7 @@ class BackgroundRenderer {
 			colorAttachments: [{
 				loadOp: "clear",
 				storeOp: "store",
-				view: this.m_ObstacleVelocityView2,
+				view: obstacleVelocityTex2.m_View,
 				clearValue: [0, 0, 0, 1]
 			}],
 		});
@@ -1657,12 +1620,15 @@ class BackgroundRenderer {
 		edgePass.setPipeline(this.m_ModifyObstaclesVelocityPipeline);
 
 		edgePass.setBindGroup(0, this.m_ParamsBindGroup);
-		edgePass.setBindGroup(1, this.m_ObstacleVelocityBindGroup);
+		edgePass.setBindGroup(1, obstacleVelocityTex.m_StorageBindGroup);
 
 		edgePass.draw(4);
 
 		edgePass.end();
 
-		return {};
+		this.m_TexturePool.release(obstacleVelocityTex);
+		obstacleVelocityTex = null;
+
+		return obstacleVelocityTex2;
 	}
 }
