@@ -1467,50 +1467,48 @@ class BackgroundRenderer {
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
 		}
 
-		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
-
-		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
-		{
-			// swap
-			const temp = this.m_CurrentVelocityTex;
-			this.m_CurrentVelocityTex = nextVelocityTex;
-			nextVelocityTex = temp;
-		}
+		this.enforceVelocityBoundary(commandEncoder);
 
 		// Diffuse velocity
-		for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
-			const diffuseStepPass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "load",
-					storeOp: "store",
-					view: nextVelocityTex.m_View,
-				}],
-			});
-
-			diffuseStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-			diffuseStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-			diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
-
-			diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
-			diffuseStepPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
-
-			diffuseStepPass.draw(4);
-			diffuseStepPass.end();
-
-			// acts as the swap
-			this.enforceVelocityBoundary(commandEncoder, nextVelocityTex, this.m_CurrentVelocityTex);
-		}
-
-		this.projectStep(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
 		{
-			// swap
-			const temp = this.m_CurrentVelocityTex;
-			this.m_CurrentVelocityTex = nextVelocityTex;
-			nextVelocityTex = temp;
+			for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
+				let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+
+				const diffuseStepPass = commandEncoder.beginRenderPass({
+					colorAttachments: [{
+						loadOp: "load",
+						storeOp: "store",
+						view: nextVelocityTex.m_View,
+					}],
+				});
+
+				diffuseStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+				diffuseStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+				diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
+
+				diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
+				diffuseStepPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
+
+				diffuseStepPass.draw(4);
+				diffuseStepPass.end();
+
+				const old = this.m_CurrentVelocityTex;
+				this.m_CurrentVelocityTex = nextVelocityTex;
+				nextVelocityTex = null;
+
+				this.m_TexturePool.release(old);
+
+				// acts as the swap
+				this.enforceVelocityBoundary(commandEncoder);
+			}
 		}
+
+		this.projectStep(commandEncoder);
 
 		// Advect velocity
 		{
+			let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+
 			const advectVelocityPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
@@ -1529,24 +1527,16 @@ class BackgroundRenderer {
 			advectVelocityPass.draw(4);
 			advectVelocityPass.end();
 
-			{
-				// swap
-				const temp = this.m_CurrentVelocityTex;
-				this.m_CurrentVelocityTex = nextVelocityTex;
-				nextVelocityTex = temp;
-			}
+			const old = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = null;
+
+			this.m_TexturePool.release(old);
 		}
 
-		// be careful! - this just swaps the arguments between calls
-		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
-		this.projectStep(commandEncoder, nextVelocityTex, this.m_CurrentVelocityTex);
-		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
-		{
-			// swap
-			const temp = this.m_CurrentVelocityTex;
-			this.m_CurrentVelocityTex = nextVelocityTex;
-			nextVelocityTex = temp;
-		}
+		this.enforceVelocityBoundary(commandEncoder);
+		this.projectStep(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder);
 
 		// Display velocity
 		{
@@ -1570,8 +1560,6 @@ class BackgroundRenderer {
 			displayPass.end();
 		}
 
-		this.m_TexturePool.release(nextVelocityTex);
-
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
 		window.requestAnimationFrame(this.frame);
@@ -1579,7 +1567,8 @@ class BackgroundRenderer {
 		this.m_TexturePool.checkBalance();
 	}
 
-	enforceVelocityBoundary(commandEncoder, currectVelocityTex, nextVelocityTex) {
+	enforceVelocityBoundary(commandEncoder) {
+		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
 		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "load",
@@ -1593,15 +1582,21 @@ class BackgroundRenderer {
 		enforceBoundaryVelPass.setPipeline(this.m_EnforceBoundaryVelocityPipeline);
 
 		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
-		enforceBoundaryVelPass.setBindGroup(1, currectVelocityTex.m_StorageBindGroup);
+		enforceBoundaryVelPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
 		enforceBoundaryVelPass.setBindGroup(2, this.m_ObstacleVelocityBindGroup2);
 		enforceBoundaryVelPass.setBindGroup(3, this.m_ObstacleMaskBindGroup);
 
 		enforceBoundaryVelPass.draw(4);
 		enforceBoundaryVelPass.end();
+
+		const old = this.m_CurrentVelocityTex;
+		this.m_CurrentVelocityTex = nextVelocityTex;
+		nextVelocityTex = null;
+
+		this.m_TexturePool.release(old);
 	}
 
-	projectStep(commandEncoder, currentVelocityTex, nextVelocityTex) {
+	projectStep(commandEncoder) {
 		// Get divergence
 		const divergenceTex = this.m_TexturePool.acquire("r32float");
 		{
@@ -1617,7 +1612,7 @@ class BackgroundRenderer {
 			divergencePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
 			divergencePass.setPipeline(this.m_GetDivergencePipeline);
 
-			divergencePass.setBindGroup(0, currentVelocityTex.m_StorageBindGroup);
+			divergencePass.setBindGroup(0, this.m_CurrentVelocityTex.m_StorageBindGroup);
 
 			divergencePass.draw(4);
 			divergencePass.end();
@@ -1660,6 +1655,7 @@ class BackgroundRenderer {
 		this.m_TexturePool.release(divergenceTex);
 
 		// Project velocity
+		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
 		{
 			const projectPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
@@ -1678,6 +1674,12 @@ class BackgroundRenderer {
 			projectPass.draw(4);
 			projectPass.end();
 		}
+
+		const old = this.m_CurrentVelocityTex;
+		this.m_CurrentVelocityTex = nextVelocityTex;
+		nextVelocityTex = null;
+
+		this.m_TexturePool.release(old);
 	}
 
 	updateObstacles(timestep) {
