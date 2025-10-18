@@ -3,7 +3,7 @@
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
 // TODO:
-// Adopt all to texture pool.
+// Try solid walls.
 // Compute shaders.
 // Red black Jacobian solver.
 // Staggered grid velocities.
