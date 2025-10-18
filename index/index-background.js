@@ -3,7 +3,7 @@
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
 // TODO: 
-// Wait for page load before starting. Red black Jacobian solver. Staggered grid velocities.
+// Red black Jacobian solver. Staggered grid velocities.
 //
 
 const k_ResolutionScale = 0.5;
@@ -430,6 +430,7 @@ class TexRef {
 	m_LastUseTimestep = 0;
 	m_Tex = null;
 	m_View = null;
+
 	m_BindGroup = null;
 	m_SampledBindGroup = null;
 }
@@ -442,34 +443,37 @@ class TexturePool {
 		this.m_Device = device;
 	}
 
-	getKey(type, w, h) {
-		return `${type}-${w}-${h}`;
+	getKey(format, w, h) {
+		return `${format}-${w}-${h}`;
 	}
 
-	acquireTex(type, w, h, timestep, layout, sampler = null, sampledLayout = null) {
-		const key = this.getKey(type, w, h);
+	acquire(format, w, h, timestep, layout, sampler = null, sampledLayout = null) {
+		const key = this.getKey(format, w, h);
 		if (!this.m_Dict[key]) {
 			this.m_Dict[key] = {
 				pool: [],
 			}
 		}
 
+		let texRef = null;
 		if (this.m_Dict[key].pool.length == 0) {
-			// create tex
 			console.log("Creating tex: " + key);
 
-			let texRef = new TexRef();
+			if ((!sampler) != (!sampledLayout))
+				throw Error("Sampler and sampled layout must both be defined.")
+
+			texRef = new TexRef();
 			texRef.m_LastUseTimestep = timestep;
 
 			texRef.m_Tex = this.m_Device.createTexture({
-				format: type,
+				format: format,
 				size: [this.m_SimWidth, this.m_SimHeight],
 				usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
 
 			});
 			texRef.m_View = texRef.m_Tex.createView();
 
-			texRef.m_SampledBindGroup = this.m_Device.createBindGroup({
+			texRef.m_BindGroup = this.m_Device.createBindGroup({
 				layout: layout,
 				entries: [
 					{
@@ -494,12 +498,14 @@ class TexturePool {
 					]
 				});
 			}
+		} else {
+			texRef = this.m_Dict[key].pool.pop();
 		}
 
-		return this.m_Dict[key].pool.pop();
+		return texRef;
 	}
 
-	releaseTex(texRef) {
+	release(texRef) {
 		const key = this.getKey(type, w, h);
 		this.m_Dict[key].pool.push(texRef);
 	}
@@ -1177,6 +1183,8 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
+	m_VelocityTexA = null;
+	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
 	m_VelocityTexViewB = null;
 	m_DivergenceTex = null;
@@ -1215,6 +1223,23 @@ class BackgroundRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
 		});
+
+		this.m_VelocityTexA = this.m_Device.createTexture({
+			format: "rg32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+			label: "Velocity Texture A",
+
+		});
+		this.m_VelocityTexViewA = this.m_VelocityTexA.createView();
+
+		this.m_VelocityTexB = this.m_Device.createTexture({
+			format: "rg32float",
+			size: [this.m_SimWidth, this.m_SimHeight],
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+			label: "Velocity Texture B"
+		});
+		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
 
 		this.m_DivergenceTex = this.m_Device.createTexture({
 			format: "r32float",
@@ -1284,6 +1309,10 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
+	m_VelocityStorageTexBindGroupA = null;
+	m_VelocityStorageTexBindGroupB = null;
+	m_VelocitySampledTexBindGroupA = null;
+	m_VelocitySampledTexBindGroupB = null;
 	m_DivergenceTexBindGroup = null;
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
@@ -1309,6 +1338,54 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
+				}
+			]
+		});
+		
+		this.m_VelocityStorageTexBindGroupA = this.m_Device.createBindGroup({
+			layout: this.m_Vec2StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexA
+				}
+			]
+		});
+
+		this.m_VelocityStorageTexBindGroupB = this.m_Device.createBindGroup({
+			layout: this.m_Vec2StorageTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexB
+				}
+			]
+		});
+
+		this.m_VelocitySampledTexBindGroupA = this.m_Device.createBindGroup({
+			layout: this.m_SampledTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexViewA
+				},
+				{
+					binding: 1,
+					resource: this.m_Sampler
+				}
+			]
+		});
+
+		this.m_VelocitySampledTexBindGroupB = this.m_Device.createBindGroup({
+			layout: this.m_SampledTexBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: this.m_VelocityTexViewB
+				},
+				{
+					binding: 1,
+					resource: this.m_Sampler
 				}
 			]
 		});
