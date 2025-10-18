@@ -3,7 +3,8 @@
 // https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
 //
 // TODO: 
-// Red black Jacobian solver. Staggered grid velocities.
+// #1 Adopt velocity texture to texture pool. They need special treatment because they exist over multiple frames.
+// Adopt all to texture pool.Remove old texture handles and such.Red black Jacobian solver.Staggered grid velocities.
 //
 
 const k_ResolutionScale = 0.5;
@@ -441,10 +442,11 @@ class TexRef {
 
 class TexturePool {
 	m_Device = null;
-	m_Dict = {};
 
 	m_SimWidth = 0;
 	m_SimHeight = 0;
+	m_Balance = 0;
+	m_Dict = {};
 
 	m_Vec2StorageTexBindGroupLayout = null;
 	m_Vec1StorageTexBindGroupLayout = null;
@@ -523,6 +525,7 @@ class TexturePool {
 	setSize(width, height) {
 		console.log("Resetting texture pool");
 		this.m_Dict = {};
+		this.m_Balance = 0;
 
 		this.m_SimWidth = width;
 		this.m_SimHeight = height;
@@ -554,7 +557,7 @@ class TexturePool {
 				case "r32float":
 					layout = this.m_Vec1StorageTexBindGroupLayout
 					break;
-				case "rg3float":
+				case "rg32float":
 					layout = this.m_Vec2StorageTexBindGroupLayout
 					break;
 				case "r32uint":
@@ -591,11 +594,20 @@ class TexturePool {
 			texRef = this.m_Dict[format].pool.pop();
 		}
 
+		++this.m_Balance;
 		return texRef;
 	}
 
 	release(texRef) {
 		this.m_Dict[texRef.m_Format].pool.push(texRef);
+		--this.m_Balance;
+	}
+
+	checkBalance() {
+		if (this.m_Balance != 0) {
+			console.log(`TexPool balance: ${this.m_Balance}`);
+		}
+		this.m_Balance = 0;
 	}
 }
 
@@ -621,13 +633,14 @@ class BackgroundRenderer {
 
 	m_IsReady = false;
 
-	m_RenderingVelocityA = true;
 	m_RenderingPressureA = true;
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
 	m_TexturePool = null;
 	m_BoxObstaclesDict = {};
+
+	m_CurrentVelocityTex = null;
 
 	async init(canvas) {
 		console.log("Renderer init");
@@ -679,9 +692,9 @@ class BackgroundRenderer {
 
 		this.frame = this.frame.bind(this);
 
-		this.createPipelines();
-
 		this.m_TexturePool = new TexturePool(this.m_Device);
+
+		this.createPipelines();
 
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
@@ -709,10 +722,6 @@ class BackgroundRenderer {
 	}
 
 	m_ParamsBindGroupLayout = null;
-	m_Vec2StorageTexBindGroupLayout = null;
-	m_Vec1StorageTexBindGroupLayout = null;
-	m_Vec1uStorageTexBindGroupLayout = null;
-	m_SampledTexBindGroupLayout = null;
 
 	m_DiffuseVelocityPipeline = null;
 	m_GetDivergencePipeline = null;
@@ -744,62 +753,9 @@ class BackgroundRenderer {
 			]
 		});
 
-		this.m_Vec2StorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					storageTexture: {
-						access: "read-only",
-						format: "rg32float",
-					},
-				},
-			]
-		});
-
-		this.m_Vec1StorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					storageTexture: {
-						access: "read-only",
-						format: "r32float",
-					},
-				},
-			]
-		});
-
-		this.m_Vec1uStorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					storageTexture: {
-						access: "read-only",
-						format: "r32uint",
-					},
-				},
-			]
-		});
-
-		this.m_SampledTexBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					texture: {},
-				},
-				{
-					binding: 1,
-					visibility: GPUShaderStage.FRAGMENT,
-					sampler: {},
-				},
-			]
-		});
-
 		const diffuseVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
+			label: "diffuseVelocityPipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec2StorageTexBindGroupLayout]
 		});
 
 		const diffuseVelocityModule = this.m_Device.createShaderModule({
@@ -838,7 +794,8 @@ class BackgroundRenderer {
 		});
 
 		const getDivergencePipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_Vec2StorageTexBindGroupLayout]
+			label: "getDivergencePipelineLayout",
+			bindGroupLayouts: [this.m_TexturePool.m_Vec2StorageTexBindGroupLayout]
 		});
 
 		const getDivergenceModule = this.m_Device.createShaderModule({
@@ -877,7 +834,8 @@ class BackgroundRenderer {
 		});
 
 		const calcPressureStepPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout, this.m_Vec1StorageTexBindGroupLayout]
+			label: "calcPressureStepPipelineLayout",
+			bindGroupLayouts: [this.m_TexturePool.m_Vec1StorageTexBindGroupLayout, this.m_TexturePool.m_Vec1StorageTexBindGroupLayout]
 		});
 
 		const calcPressureStepModule = this.m_Device.createShaderModule({
@@ -916,7 +874,8 @@ class BackgroundRenderer {
 		});
 
 		const projectVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_Vec1StorageTexBindGroupLayout]
+			label: "projectVelocityPipelineLayout",
+			bindGroupLayouts: [this.m_TexturePool.m_Vec1StorageTexBindGroupLayout]
 		});
 
 		const projectVelocityStepModule = this.m_Device.createShaderModule({
@@ -955,7 +914,8 @@ class BackgroundRenderer {
 		});
 
 		const advectVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_SampledTexBindGroupLayout]
+			label: "advectVelocityPipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_SampledTexBindGroupLayout]
 		});
 
 		const advectVelocityStepModule = this.m_Device.createShaderModule({
@@ -994,7 +954,8 @@ class BackgroundRenderer {
 		});
 
 		const displayVec2TexPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout]
+			label: "displayVec2TexPipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec2StorageTexBindGroupLayout]
 		});
 
 		const displayVec2TexModule = this.m_Device.createShaderModule({
@@ -1032,7 +993,8 @@ class BackgroundRenderer {
 		});
 
 		const displayVec1TexPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec1StorageTexBindGroupLayout]
+			label: "displayVec1TexPipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec1StorageTexBindGroupLayout]
 		});
 
 		const displayVec1TexModule = this.m_Device.createShaderModule({
@@ -1070,7 +1032,8 @@ class BackgroundRenderer {
 		});
 
 		const displayVec1uTexPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+			label: "displayVec1uTexPipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout]
 		});
 
 		const displayVec1uTexModule = this.m_Device.createShaderModule({
@@ -1108,6 +1071,7 @@ class BackgroundRenderer {
 		});
 
 		const drawObstaclesMaskPipelineLayout = this.m_Device.createPipelineLayout({
+			label: "drawObstaclesMaskPipelineLayout",
 			bindGroupLayouts: []
 		});
 
@@ -1153,6 +1117,7 @@ class BackgroundRenderer {
 		});
 
 		const drawObstaclesVelocityPipelineLayout = this.m_Device.createPipelineLayout({
+			label: "drawObstaclesVelocityPipelineLayout",
 			bindGroupLayouts: []
 		});
 
@@ -1203,7 +1168,12 @@ class BackgroundRenderer {
 		});
 
 		const modifyObstaclesVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+			label: "modifyObstaclesVelocityPipelineLayout",
+			bindGroupLayouts: [
+				this.m_ParamsBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+				this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout
+			]
 		});
 
 		const modifyObstaclesVelocityModule = this.m_Device.createShaderModule({
@@ -1230,7 +1200,13 @@ class BackgroundRenderer {
 		});
 
 		const enforceBoundaryVelocityPipelineLayout = this.m_Device.createPipelineLayout({
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec2StorageTexBindGroupLayout, this.m_Vec1uStorageTexBindGroupLayout]
+			label: "enforceBoundaryVelocityPipelineLayout",
+			bindGroupLayouts: [
+				this.m_ParamsBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+				this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout
+			]
 		});
 
 		const enforceBoundaryVelocityModule = this.m_Device.createShaderModule({
@@ -1259,12 +1235,6 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
-	m_VelocityTexA = null;
-	m_VelocityTexViewA = null;
-	m_VelocityTexB = null;
-	m_VelocityTexViewB = null;
-	//m_DivergenceTex = null;
-	//m_DivergenceTexView = null;
 	m_PressureTexA = null;
 	m_PressureTexViewA = null;
 	m_PressureTexB = null;
@@ -1299,31 +1269,6 @@ class BackgroundRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
 		});
-
-		this.m_VelocityTexA = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-			label: "Velocity Texture A",
-
-		});
-		this.m_VelocityTexViewA = this.m_VelocityTexA.createView();
-
-		this.m_VelocityTexB = this.m_Device.createTexture({
-			format: "rg32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-			label: "Velocity Texture B"
-		});
-		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
-
-		// this.m_DivergenceTex = this.m_Device.createTexture({
-		// 	format: "r32float",
-		// 	size: [this.m_SimWidth, this.m_SimHeight],
-		// 	usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-		// 	label: "Divergence Texture"
-		// });
-		// this.m_DivergenceTexView = this.m_DivergenceTex.createView();
 
 		this.m_PressureTexA = this.m_Device.createTexture({
 			format: "r32float",
@@ -1385,11 +1330,6 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
-	m_VelocityStorageTexBindGroupA = null;
-	m_VelocityStorageTexBindGroupB = null;
-	m_VelocitySampledTexBindGroupA = null;
-	m_VelocitySampledTexBindGroupB = null;
-	//m_DivergenceTexBindGroup = null;
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
 
@@ -1418,66 +1358,8 @@ class BackgroundRenderer {
 			]
 		});
 
-		this.m_VelocityStorageTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexA
-				}
-			]
-		});
-
-		this.m_VelocityStorageTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexB
-				}
-			]
-		});
-
-		this.m_VelocitySampledTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_SampledTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexViewA
-				},
-				{
-					binding: 1,
-					resource: this.m_Sampler
-				}
-			]
-		});
-
-		this.m_VelocitySampledTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_SampledTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_VelocityTexViewB
-				},
-				{
-					binding: 1,
-					resource: this.m_Sampler
-				}
-			]
-		});
-
-		// this.m_DivergenceTexBindGroup = this.m_Device.createBindGroup({
-		// 	layout: this.m_Vec1StorageTexBindGroupLayout,
-		// 	entries: [
-		// 		{
-		// 			binding: 0,
-		// 			resource: this.m_DivergenceTex
-		// 		}
-		// 	]
-		// });
-
 		this.m_PressureTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_Vec1StorageTexBindGroupLayout,
+			layout: this.m_TexturePool.m_Vec1StorageTexBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -1487,7 +1369,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_PressureTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_Vec1StorageTexBindGroupLayout,
+			layout: this.m_TexturePool.m_Vec1StorageTexBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -1497,7 +1379,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_ObstacleMaskBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_Vec1uStorageTexBindGroupLayout,
+			layout: this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -1507,7 +1389,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_ObstacleVelocityBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
+			layout: this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -1517,7 +1399,7 @@ class BackgroundRenderer {
 		});
 
 		this.m_ObstacleVelocityBindGroup2 = this.m_Device.createBindGroup({
-			layout: this.m_Vec2StorageTexBindGroupLayout,
+			layout: this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -1536,7 +1418,16 @@ class BackgroundRenderer {
 
 		if (this.m_SimWidth != this.m_TexturePool.m_SimWidth ||
 			this.m_SimHeight != this.m_TexturePool.m_SimHeight) {
+			if (this.m_CurrentVelocityTex !== null) {
+				this.m_TexturePool.release(this.m_CurrentVelocityTex);
+			}
+			this.m_CurrentVelocityTex = null;
+
 			this.m_TexturePool.setSize(this.m_SimWidth, this.m_SimHeight);
+		}
+
+		if (this.m_CurrentVelocityTex == null) {
+			this.m_CurrentVelocityTex = this.m_TexturePool.acquire("rg32float");
 		}
 
 		this.updateObstacles();
@@ -1576,17 +1467,23 @@ class BackgroundRenderer {
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
+		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+
+		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
+		{
+			// swap
+			const temp = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = temp;
+		}
 
 		// Diffuse velocity
 		for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
-			this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
-
 			const diffuseStepPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+					view: nextVelocityTex.m_View,
 				}],
 			});
 
@@ -1595,25 +1492,30 @@ class BackgroundRenderer {
 			diffuseStepPass.setPipeline(this.m_DiffuseVelocityPipeline);
 
 			diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
-			diffuseStepPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
+			diffuseStepPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
 
 			diffuseStepPass.draw(4);
 			diffuseStepPass.end();
 
-			this.enforceVelocityBoundary(commandEncoder);
+			// acts as the swap
+			this.enforceVelocityBoundary(commandEncoder, nextVelocityTex, this.m_CurrentVelocityTex);
 		}
 
-		this.projectStep(commandEncoder);
+		this.projectStep(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
+		{
+			// swap
+			const temp = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = temp;
+		}
 
 		// Advect velocity
 		{
-			this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
-
 			const advectVelocityPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+					view: nextVelocityTex.m_View,
 				}],
 			});
 
@@ -1622,17 +1524,29 @@ class BackgroundRenderer {
 			advectVelocityPass.setPipeline(this.m_AdvectVelocityPipeline);
 
 			advectVelocityPass.setBindGroup(0, this.m_ParamsBindGroup);
-			advectVelocityPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocitySampledTexBindGroupB : this.m_VelocitySampledTexBindGroupA);
+			advectVelocityPass.setBindGroup(1, this.m_CurrentVelocityTex.m_SampledBindGroup);
 
 			advectVelocityPass.draw(4);
 			advectVelocityPass.end();
+
+			{
+				// swap
+				const temp = this.m_CurrentVelocityTex;
+				this.m_CurrentVelocityTex = nextVelocityTex;
+				nextVelocityTex = temp;
+			}
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
-
-		this.projectStep(commandEncoder);
-
-		this.enforceVelocityBoundary(commandEncoder);
+		// be careful! - this just swaps the arguments between calls
+		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
+		this.projectStep(commandEncoder, nextVelocityTex, this.m_CurrentVelocityTex);
+		this.enforceVelocityBoundary(commandEncoder, this.m_CurrentVelocityTex, nextVelocityTex);
+		{
+			// swap
+			const temp = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = temp;
+		}
 
 		// Display velocity
 		{
@@ -1650,25 +1564,27 @@ class BackgroundRenderer {
 			displayPass.setPipeline(this.m_DisplayVec2TexPipeline);
 
 			displayPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+			displayPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
 
 			displayPass.draw(4);
 			displayPass.end();
 		}
 
+		this.m_TexturePool.release(nextVelocityTex);
+
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
 		window.requestAnimationFrame(this.frame);
+
+		this.m_TexturePool.checkBalance();
 	}
 
-	enforceVelocityBoundary(commandEncoder) {
-		this.m_RenderingVelocityA = !this.m_RenderingVelocityA;
-
+	enforceVelocityBoundary(commandEncoder, currectVelocityTex, nextVelocityTex) {
 		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "load",
 				storeOp: "store",
-				view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+				view: nextVelocityTex.m_View,
 			}],
 		});
 
@@ -1677,7 +1593,7 @@ class BackgroundRenderer {
 		enforceBoundaryVelPass.setPipeline(this.m_EnforceBoundaryVelocityPipeline);
 
 		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
-		enforceBoundaryVelPass.setBindGroup(1, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupB : this.m_VelocityStorageTexBindGroupA);
+		enforceBoundaryVelPass.setBindGroup(1, currectVelocityTex.m_StorageBindGroup);
 		enforceBoundaryVelPass.setBindGroup(2, this.m_ObstacleVelocityBindGroup2);
 		enforceBoundaryVelPass.setBindGroup(3, this.m_ObstacleMaskBindGroup);
 
@@ -1685,7 +1601,7 @@ class BackgroundRenderer {
 		enforceBoundaryVelPass.end();
 	}
 
-	projectStep(commandEncoder) {
+	projectStep(commandEncoder, currentVelocityTex, nextVelocityTex) {
 		// Get divergence
 		const divergenceTex = this.m_TexturePool.acquire("r32float");
 		{
@@ -1693,7 +1609,6 @@ class BackgroundRenderer {
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					//view: this.m_DivergenceTexView,
 					view: divergenceTex.m_View,
 				}],
 			});
@@ -1702,22 +1617,22 @@ class BackgroundRenderer {
 			divergencePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
 			divergencePass.setPipeline(this.m_GetDivergencePipeline);
 
-			divergencePass.setBindGroup(0, this.m_RenderingVelocityA ? this.m_VelocityStorageTexBindGroupA : this.m_VelocityStorageTexBindGroupB);
+			divergencePass.setBindGroup(0, currentVelocityTex.m_StorageBindGroup);
 
 			divergencePass.draw(4);
 			divergencePass.end();
 		}
 
 		// Clear pressure
-		const pressureClearPass = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				loadOp: "clear",
-				storeOp: "store",
-				view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
-				clearValue: [0, 0, 0, 1]
-			}],
-		});
-		pressureClearPass.end();
+		// const pressureClearPass = commandEncoder.beginRenderPass({
+		// 	colorAttachments: [{
+		// 		loadOp: "clear",
+		// 		storeOp: "store",
+		// 		view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
+		// 		clearValue: [0, 0, 0, 1]
+		// 	}],
+		// });
+		// pressureClearPass.end();
 
 		// Get pressure
 		for (let i = 0; i < k_PressureSteps; ++i) {
@@ -1750,7 +1665,7 @@ class BackgroundRenderer {
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_RenderingVelocityA ? this.m_VelocityTexViewA : this.m_VelocityTexViewB,
+					view: nextVelocityTex.m_View,
 				}],
 			});
 
@@ -1774,7 +1689,6 @@ class BackgroundRenderer {
 			if (exists) {
 				this.m_BoxObstaclesDict[el.id].m_LastPosition = [this.m_BoxObstaclesDict[el.id].m_Position[0], this.m_BoxObstaclesDict[el.id].m_Position[1]];
 			} else {
-				console.log(`${rect.left}, ${rect.top}, ${rect.width}, ${rect.height}`);
 				this.m_BoxObstaclesDict[el.id] = new BoxObstacle(rect.left, rect.top, rect.width, rect.height, timestep);
 			}
 
