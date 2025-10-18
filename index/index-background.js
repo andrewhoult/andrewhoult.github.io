@@ -634,7 +634,6 @@ class BackgroundRenderer {
 
 	m_IsReady = false;
 
-	m_RenderingPressureA = true;
 	m_SimWidth = 100;
 	m_SimHeight = 100;
 
@@ -642,6 +641,7 @@ class BackgroundRenderer {
 	m_BoxObstaclesDict = {};
 
 	m_CurrentVelocityTex = null;
+	m_CurrentPressureTex = null;
 
 	async init(canvas) {
 		console.log("Renderer init");
@@ -1236,10 +1236,6 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
-	m_PressureTexA = null;
-	m_PressureTexViewA = null;
-	m_PressureTexB = null;
-	m_PressureTexViewB = null;
 	m_Sampler = null;
 
 	m_ObstacleMask = null;
@@ -1277,22 +1273,6 @@ class BackgroundRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
 		});
-
-		this.m_PressureTexA = this.m_Device.createTexture({
-			format: "r32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Pressure Texture A"
-		});
-		this.m_PressureTexViewA = this.m_PressureTexA.createView();
-
-		this.m_PressureTexB = this.m_Device.createTexture({
-			format: "r32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Pressure Texture B"
-		});
-		this.m_PressureTexViewB = this.m_PressureTexB.createView();
 
 		this.m_Sampler = this.m_Device.createSampler({
 			addressModeU: "repeat",
@@ -1338,8 +1318,6 @@ class BackgroundRenderer {
 
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
-	m_PressureTexBindGroupA = null;
-	m_PressureTexBindGroupB = null;
 
 	m_ObstacleMaskBindGroup = null;
 	m_ObstacleVelocityBindGroup = null;
@@ -1362,26 +1340,6 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
-				}
-			]
-		});
-
-		this.m_PressureTexBindGroupA = this.m_Device.createBindGroup({
-			layout: this.m_TexturePool.m_Vec1StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_PressureTexA
-				}
-			]
-		});
-
-		this.m_PressureTexBindGroupB = this.m_Device.createBindGroup({
-			layout: this.m_TexturePool.m_Vec1StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_PressureTexB
 				}
 			]
 		});
@@ -1429,13 +1387,20 @@ class BackgroundRenderer {
 			if (this.m_CurrentVelocityTex !== null) {
 				this.m_TexturePool.release(this.m_CurrentVelocityTex);
 			}
+			if (this.m_CurrentPressureTex !== null) {
+				this.m_TexturePool.release(this.m_CurrentPressureTex);
+			}
 			this.m_CurrentVelocityTex = null;
+			this.m_CurrentPressureTex = null;
 
 			this.m_TexturePool.setSize(this.m_SimWidth, this.m_SimHeight);
 		}
 
 		if (this.m_CurrentVelocityTex == null) {
 			this.m_CurrentVelocityTex = this.m_TexturePool.acquire("rg32float");
+		}
+		if (this.m_CurrentPressureTex == null) {
+			this.m_CurrentPressureTex = this.m_TexturePool.acquire("r32float");
 		}
 
 		this.updateObstacles();
@@ -1577,6 +1542,7 @@ class BackgroundRenderer {
 
 	enforceVelocityBoundary(commandEncoder) {
 		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+		
 		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "load",
@@ -1605,66 +1571,76 @@ class BackgroundRenderer {
 	}
 
 	projectStep(commandEncoder) {
-		// Get divergence
-		const divergenceTex = this.m_TexturePool.acquire("r32float");
 		{
-			const divergencePass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "load",
-					storeOp: "store",
-					view: divergenceTex.m_View,
-				}],
-			});
+			const divergenceTex = this.m_TexturePool.acquire("r32float");
 
-			divergencePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-			divergencePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-			divergencePass.setPipeline(this.m_GetDivergencePipeline);
+			// Get divergence
+			{
+				const divergencePass = commandEncoder.beginRenderPass({
+					colorAttachments: [{
+						loadOp: "load",
+						storeOp: "store",
+						view: divergenceTex.m_View,
+					}],
+				});
 
-			divergencePass.setBindGroup(0, this.m_CurrentVelocityTex.m_StorageBindGroup);
+				divergencePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+				divergencePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+				divergencePass.setPipeline(this.m_GetDivergencePipeline);
 
-			divergencePass.draw(4);
-			divergencePass.end();
+				divergencePass.setBindGroup(0, this.m_CurrentVelocityTex.m_StorageBindGroup);
+
+				divergencePass.draw(4);
+				divergencePass.end();
+			}
+
+			// Clear pressure
+			// const pressureClearPass = commandEncoder.beginRenderPass({
+			// 	colorAttachments: [{
+			// 		loadOp: "clear",
+			// 		storeOp: "store",
+			// 		view: this.m_CurrentPressureTex.m_View,
+			// 		clearValue: [0, 0, 0, 1]
+			// 	}],
+			// });
+			// pressureClearPass.end();
+
+			// Get pressure
+			for (let i = 0; i < k_PressureSteps; ++i) {
+				let nextPressureTex = this.m_TexturePool.acquire("r32float");
+
+				const pressureStepPass = commandEncoder.beginRenderPass({
+					colorAttachments: [{
+						loadOp: "load",
+						storeOp: "store",
+						view: nextPressureTex.m_View,
+					}],
+				});
+
+				pressureStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+				pressureStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+				pressureStepPass.setPipeline(this.m_CalcPressureStepPipeline);
+
+				pressureStepPass.setBindGroup(0, this.m_CurrentPressureTex.m_StorageBindGroup);
+				pressureStepPass.setBindGroup(1, divergenceTex.m_StorageBindGroup);
+
+				pressureStepPass.draw(4);
+				pressureStepPass.end();
+
+				const old = this.m_CurrentPressureTex;
+				this.m_CurrentPressureTex = nextPressureTex;
+				nextPressureTex = null;
+
+				this.m_TexturePool.release(old);
+			}
+
+			this.m_TexturePool.release(divergenceTex);
 		}
-
-		// Clear pressure
-		// const pressureClearPass = commandEncoder.beginRenderPass({
-		// 	colorAttachments: [{
-		// 		loadOp: "clear",
-		// 		storeOp: "store",
-		// 		view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
-		// 		clearValue: [0, 0, 0, 1]
-		// 	}],
-		// });
-		// pressureClearPass.end();
-
-		// Get pressure
-		for (let i = 0; i < k_PressureSteps; ++i) {
-			this.m_RenderingPressureA = !this.m_RenderingPressureA;
-
-			const pressureStepPass = commandEncoder.beginRenderPass({
-				colorAttachments: [{
-					loadOp: "load",
-					storeOp: "store",
-					view: this.m_RenderingPressureA ? this.m_PressureTexViewA : this.m_PressureTexViewB,
-				}],
-			});
-
-			pressureStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-			pressureStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-			pressureStepPass.setPipeline(this.m_CalcPressureStepPipeline);
-
-			pressureStepPass.setBindGroup(0, this.m_RenderingPressureA ? this.m_PressureTexBindGroupB : this.m_PressureTexBindGroupA);
-			pressureStepPass.setBindGroup(1, divergenceTex.m_StorageBindGroup);
-
-			pressureStepPass.draw(4);
-			pressureStepPass.end();
-		}
-
-		this.m_TexturePool.release(divergenceTex);
 
 		// Project velocity
-		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
 		{
+			let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+
 			const projectPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
@@ -1677,17 +1653,17 @@ class BackgroundRenderer {
 			projectPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
 			projectPass.setPipeline(this.m_ProjectVelocityPipeline);
 
-			projectPass.setBindGroup(0, this.m_RenderingPressureA ? this.m_PressureTexBindGroupA : this.m_PressureTexBindGroupB);
+			projectPass.setBindGroup(0, this.m_CurrentPressureTex.m_StorageBindGroup);
 
 			projectPass.draw(4);
 			projectPass.end();
+
+			const old = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = null;
+
+			this.m_TexturePool.release(old);
 		}
-
-		const old = this.m_CurrentVelocityTex;
-		this.m_CurrentVelocityTex = nextVelocityTex;
-		nextVelocityTex = null;
-
-		this.m_TexturePool.release(old);
 	}
 
 	updateObstacles(timestep) {
