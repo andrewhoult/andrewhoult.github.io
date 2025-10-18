@@ -427,43 +427,119 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
 `;
 
 class TexRef {
-	m_LastUseTimestep = 0;
+	m_Format = null;
 	m_Tex = null;
 	m_View = null;
 
-	m_BindGroup = null;
+	m_StorageBindGroup = null;
 	m_SampledBindGroup = null;
+
+	constructor(format) {
+		this.m_Format = format;
+	}
 }
 
 class TexturePool {
 	m_Device = null;
 	m_Dict = {};
 
-	constructor(device) {
+	m_SimWidth = 0;
+	m_SimHeight = 0;
+
+	m_Vec2StorageTexBindGroupLayout = null;
+	m_Vec1StorageTexBindGroupLayout = null;
+	m_Vec1uStorageTexBindGroupLayout = null;
+	m_SampledTexBindGroupLayout = null;
+
+	constructor(device, width, height) {
 		this.m_Device = device;
+
+		this.setSize(width, height);
+
+		// create bind group layouts
+		this.m_Vec2StorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					storageTexture: {
+						access: "read-only",
+						format: "rg32float",
+					},
+				},
+			]
+		});
+
+		this.m_Vec1StorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					storageTexture: {
+						access: "read-only",
+						format: "r32float",
+					},
+				},
+			]
+		});
+
+		this.m_Vec1uStorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					storageTexture: {
+						access: "read-only",
+						format: "r32uint",
+					},
+				},
+			]
+		});
+
+		this.m_SampledTexBindGroupLayout = this.m_Device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					texture: {},
+				},
+				{
+					binding: 1,
+					visibility: GPUShaderStage.FRAGMENT,
+					sampler: {},
+				},
+			]
+		});
+
+		// create sampler
+		this.m_Sampler = this.m_Device.createSampler({
+			addressModeU: "repeat",
+			addressModeV: "repeat",
+			magFilter: "linear",
+			minFilter: "linear",
+		});
 	}
 
-	getKey(format, w, h) {
-		return `${format}-${w}-${h}`;
+	setSize(width, height) {
+		console.log("Resetting texture pool");
+		this.m_Dict = {};
+
+		this.m_SimWidth = width;
+		this.m_SimHeight = height;
 	}
 
-	acquire(format, w, h, timestep, layout, sampler = null, sampledLayout = null) {
-		const key = this.getKey(format, w, h);
-		if (!this.m_Dict[key]) {
-			this.m_Dict[key] = {
+	acquire(format) {
+		if (!this.m_Dict[format]) {
+			this.m_Dict[format] = {
 				pool: [],
 			}
 		}
 
 		let texRef = null;
-		if (this.m_Dict[key].pool.length == 0) {
-			console.log("Creating tex: " + key);
+		if (this.m_Dict[format].pool.length == 0) {
+			console.log("Creating tex: " + format);
 
-			if ((!sampler) != (!sampledLayout))
-				throw Error("Sampler and sampled layout must both be defined.")
-
-			texRef = new TexRef();
-			texRef.m_LastUseTimestep = timestep;
+			texRef = new TexRef(format);
 
 			texRef.m_Tex = this.m_Device.createTexture({
 				format: format,
@@ -473,7 +549,22 @@ class TexturePool {
 			});
 			texRef.m_View = texRef.m_Tex.createView();
 
-			texRef.m_BindGroup = this.m_Device.createBindGroup({
+			let layout = null;
+			switch (format) {
+				case "r32float":
+					layout = this.m_Vec1StorageTexBindGroupLayout
+					break;
+				case "rg3float":
+					layout = this.m_Vec2StorageTexBindGroupLayout
+					break;
+				case "r32uint":
+					layout = this.m_Vec1uStorageTexBindGroupLayout
+					break;
+			}
+
+			if (!layout) throw new Error(`Unknown format ${format}`);
+
+			texRef.m_StorageBindGroup = this.m_Device.createBindGroup({
 				layout: layout,
 				entries: [
 					{
@@ -483,43 +574,28 @@ class TexturePool {
 				]
 			});
 
-			if (sampler) {
-				texRef.m_SampledBindGroup = this.m_Device.createBindGroup({
-					layout: sampledLayout,
-					entries: [
-						{
-							binding: 0,
-							resource: texRef.m_View
-						},
-						{
-							binding: 1,
-							resource: sampler
-						}
-					]
-				});
-			}
+			texRef.m_SampledBindGroup = this.m_Device.createBindGroup({
+				layout: this.m_SampledTexBindGroupLayout,
+				entries: [
+					{
+						binding: 0,
+						resource: texRef.m_View
+					},
+					{
+						binding: 1,
+						resource: this.m_Sampler
+					}
+				]
+			});
 		} else {
-			texRef = this.m_Dict[key].pool.pop();
+			texRef = this.m_Dict[format].pool.pop();
 		}
 
 		return texRef;
 	}
 
 	release(texRef) {
-		const key = this.getKey(type, w, h);
-		this.m_Dict[key].pool.push(texRef);
-	}
-
-	clearStale(timestep) {
-		// const entries = this.m_Dict.entries;
-		// if (!entries) return;
-
-		// entries.forEach((key, value) => {
-		// 	if (value.m_LastUseTimestep < timestep) {
-		// 		console.log("Deleting ")
-		// 		delete this.m_Dict[key];
-		// 	}
-		// });
+		this.m_Dict[texRef.m_Format].pool.push(texRef);
 	}
 }
 
@@ -1187,8 +1263,8 @@ class BackgroundRenderer {
 	m_VelocityTexViewA = null;
 	m_VelocityTexB = null;
 	m_VelocityTexViewB = null;
-	m_DivergenceTex = null;
-	m_DivergenceTexView = null;
+	//m_DivergenceTex = null;
+	//m_DivergenceTexView = null;
 	m_PressureTexA = null;
 	m_PressureTexViewA = null;
 	m_PressureTexB = null;
@@ -1241,13 +1317,13 @@ class BackgroundRenderer {
 		});
 		this.m_VelocityTexViewB = this.m_VelocityTexB.createView();
 
-		this.m_DivergenceTex = this.m_Device.createTexture({
-			format: "r32float",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Divergence Texture"
-		});
-		this.m_DivergenceTexView = this.m_DivergenceTex.createView();
+		// this.m_DivergenceTex = this.m_Device.createTexture({
+		// 	format: "r32float",
+		// 	size: [this.m_SimWidth, this.m_SimHeight],
+		// 	usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
+		// 	label: "Divergence Texture"
+		// });
+		// this.m_DivergenceTexView = this.m_DivergenceTex.createView();
 
 		this.m_PressureTexA = this.m_Device.createTexture({
 			format: "r32float",
@@ -1313,7 +1389,7 @@ class BackgroundRenderer {
 	m_VelocityStorageTexBindGroupB = null;
 	m_VelocitySampledTexBindGroupA = null;
 	m_VelocitySampledTexBindGroupB = null;
-	m_DivergenceTexBindGroup = null;
+	//m_DivergenceTexBindGroup = null;
 	m_PressureTexBindGroupA = null;
 	m_PressureTexBindGroupB = null;
 
@@ -1341,7 +1417,7 @@ class BackgroundRenderer {
 				}
 			]
 		});
-		
+
 		this.m_VelocityStorageTexBindGroupA = this.m_Device.createBindGroup({
 			layout: this.m_Vec2StorageTexBindGroupLayout,
 			entries: [
@@ -1390,15 +1466,15 @@ class BackgroundRenderer {
 			]
 		});
 
-		this.m_DivergenceTexBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_Vec1StorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_DivergenceTex
-				}
-			]
-		});
+		// this.m_DivergenceTexBindGroup = this.m_Device.createBindGroup({
+		// 	layout: this.m_Vec1StorageTexBindGroupLayout,
+		// 	entries: [
+		// 		{
+		// 			binding: 0,
+		// 			resource: this.m_DivergenceTex
+		// 		}
+		// 	]
+		// });
 
 		this.m_PressureTexBindGroupA = this.m_Device.createBindGroup({
 			layout: this.m_Vec1StorageTexBindGroupLayout,
@@ -1454,9 +1530,13 @@ class BackgroundRenderer {
 	async frame(timestep) {
 		if (!this.m_IsReady) {
 			this.m_PrevTimeStep = timestep;
-			this.m_TexturePool.clearStale(timestep);
 			window.requestAnimationFrame(this.frame);
 			return;
+		}
+
+		if (this.m_SimWidth != this.m_TexturePool.m_SimWidth ||
+			this.m_SimHeight != this.m_TexturePool.m_SimHeight) {
+			this.m_TexturePool.setSize(this.m_SimWidth, this.m_SimHeight);
 		}
 
 		this.updateObstacles();
@@ -1578,7 +1658,6 @@ class BackgroundRenderer {
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
-		this.m_TexturePool.clearStale(timestep);
 		window.requestAnimationFrame(this.frame);
 	}
 
@@ -1608,12 +1687,14 @@ class BackgroundRenderer {
 
 	projectStep(commandEncoder) {
 		// Get divergence
+		const divergenceTex = this.m_TexturePool.acquire("r32float");
 		{
 			const divergencePass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "load",
 					storeOp: "store",
-					view: this.m_DivergenceTexView,
+					//view: this.m_DivergenceTexView,
+					view: divergenceTex.m_View,
 				}],
 			});
 
@@ -1628,15 +1709,15 @@ class BackgroundRenderer {
 		}
 
 		// Clear pressure
-		// const pressureClearPass = commandEncoder.beginRenderPass({
-		// 	colorAttachments: [{
-		// 		loadOp: "clear",
-		// 		storeOp: "store",
-		// 		view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
-		// 		clearValue: [0, 0, 0, 1]
-		// 	}],
-		// });
-		// pressureClearPass.end();
+		const pressureClearPass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "clear",
+				storeOp: "store",
+				view: this.m_RenderingPressureA ? this.m_PressureTexViewB : this.m_PressureTexViewA,
+				clearValue: [0, 0, 0, 1]
+			}],
+		});
+		pressureClearPass.end();
 
 		// Get pressure
 		for (let i = 0; i < k_PressureSteps; ++i) {
@@ -1655,11 +1736,13 @@ class BackgroundRenderer {
 			pressureStepPass.setPipeline(this.m_CalcPressureStepPipeline);
 
 			pressureStepPass.setBindGroup(0, this.m_RenderingPressureA ? this.m_PressureTexBindGroupB : this.m_PressureTexBindGroupA);
-			pressureStepPass.setBindGroup(1, this.m_DivergenceTexBindGroup);
+			pressureStepPass.setBindGroup(1, divergenceTex.m_StorageBindGroup);
 
 			pressureStepPass.draw(4);
 			pressureStepPass.end();
 		}
+
+		this.m_TexturePool.release(divergenceTex);
 
 		// Project velocity
 		{
