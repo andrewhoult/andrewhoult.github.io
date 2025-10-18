@@ -313,7 +313,7 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> Verte
 }
 
 @fragment
-fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) u32 {
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   return 1;
 }
 `;
@@ -372,7 +372,7 @@ struct Params {
 
 @group(0) @binding(0) var<uniform> params : Params;
 @group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
-@group(2) @binding(0) var mask_tex : texture_storage_2d<r32uint, read>;
+@group(2) @binding(0) var mask_tex : texture_storage_2d<r32float, read>;
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
@@ -415,7 +415,7 @@ struct Params {
 @group(0) @binding(0) var<uniform> params : Params;
 @group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
 @group(2) @binding(0) var boundvel_tex : texture_storage_2d<rg32float, read>;
-@group(3) @binding(0) var mask : texture_storage_2d<r32uint, read>;
+@group(3) @binding(0) var mask : texture_storage_2d<r32float, read>;
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f32> {
@@ -1086,7 +1086,7 @@ class BackgroundRenderer {
 			fragment: {
 				module: drawObstaclesMaskModule,
 				targets: [{
-					format: "r32uint"
+					format: "r32float"
 				}],
 			},
 			vertex: {
@@ -1173,7 +1173,7 @@ class BackgroundRenderer {
 			bindGroupLayouts: [
 				this.m_ParamsBindGroupLayout,
 				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
-				this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout
+				this.m_TexturePool.m_Vec1StorageTexBindGroupLayout
 			]
 		});
 
@@ -1206,7 +1206,7 @@ class BackgroundRenderer {
 				this.m_ParamsBindGroupLayout,
 				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
 				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
-				this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout
+				this.m_TexturePool.m_Vec1StorageTexBindGroupLayout
 			]
 		});
 
@@ -1238,8 +1238,6 @@ class BackgroundRenderer {
 	m_DebugParamsBuffer = null;
 	m_Sampler = null;
 
-	m_ObstacleMask = null;
-	m_ObstacleMaskView = null;
 	m_ObstacleVelocity = null;
 	m_ObstacleVelocityView = null;
 	m_ObstacleVelocity2 = null;
@@ -1281,14 +1279,6 @@ class BackgroundRenderer {
 			minFilter: "linear",
 		});
 
-		this.m_ObstacleMask = this.m_Device.createTexture({
-			format: "r32uint",
-			size: [this.m_SimWidth, this.m_SimHeight],
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
-			label: "Obstacle Mask"
-		});
-		this.m_ObstacleMaskView = this.m_ObstacleMask.createView();
-
 		this.m_ObstacleVelocity = this.m_Device.createTexture({
 			format: "rg32float",
 			size: [this.m_SimWidth, this.m_SimHeight],
@@ -1319,7 +1309,6 @@ class BackgroundRenderer {
 	m_ParamsBindGroup = null;
 	m_DebugParamsBindGroup = null;
 
-	m_ObstacleMaskBindGroup = null;
 	m_ObstacleVelocityBindGroup = null;
 	m_ObstacleVelocityBindGroup2 = null;
 
@@ -1340,16 +1329,6 @@ class BackgroundRenderer {
 				{
 					binding: 0,
 					resource: this.m_DebugParamsBuffer
-				}
-			]
-		});
-
-		this.m_ObstacleMaskBindGroup = this.m_Device.createBindGroup({
-			layout: this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: this.m_ObstacleMask
 				}
 			]
 		});
@@ -1414,7 +1393,8 @@ class BackgroundRenderer {
 
 		const commandEncoder = this.m_Device.createCommandEncoder();
 
-		this.drawObstacles(commandEncoder, deltaT);
+		const obstacleTextures = this.drawObstacles(commandEncoder, deltaT);
+		let obstacleMaskTex = obstacleTextures.obstacleMaskTex;
 
 		// Set params
 		{
@@ -1440,7 +1420,7 @@ class BackgroundRenderer {
 			this.m_Device.queue.writeBuffer(this.m_DebugParamsBuffer, 0, paramsView);
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleMaskTex);
 
 		// Diffuse velocity
 		{
@@ -1472,7 +1452,7 @@ class BackgroundRenderer {
 				this.m_TexturePool.release(old);
 
 				// acts as the swap
-				this.enforceVelocityBoundary(commandEncoder);
+				this.enforceVelocityBoundary(commandEncoder, obstacleMaskTex);
 			}
 		}
 
@@ -1507,9 +1487,12 @@ class BackgroundRenderer {
 			this.m_TexturePool.release(old);
 		}
 
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleMaskTex);
 		this.projectStep(commandEncoder);
-		this.enforceVelocityBoundary(commandEncoder);
+		this.enforceVelocityBoundary(commandEncoder, obstacleMaskTex);
+
+		this.m_TexturePool.release(obstacleMaskTex);
+		obstacleMaskTex = null;
 
 		// Display velocity
 		{
@@ -1540,9 +1523,9 @@ class BackgroundRenderer {
 		this.m_TexturePool.checkBalance();
 	}
 
-	enforceVelocityBoundary(commandEncoder) {
+	enforceVelocityBoundary(commandEncoder, obstacleMaskTex) {
 		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
-		
+
 		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "load",
@@ -1558,7 +1541,7 @@ class BackgroundRenderer {
 		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
 		enforceBoundaryVelPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
 		enforceBoundaryVelPass.setBindGroup(2, this.m_ObstacleVelocityBindGroup2);
-		enforceBoundaryVelPass.setBindGroup(3, this.m_ObstacleMaskBindGroup);
+		enforceBoundaryVelPass.setBindGroup(3, obstacleMaskTex.m_StorageBindGroup);
 
 		enforceBoundaryVelPass.draw(4);
 		enforceBoundaryVelPass.end();
@@ -1734,11 +1717,12 @@ class BackgroundRenderer {
 		this.m_Device.queue.writeBuffer(this.m_ObstacleInstanceBuffer, 0, instanceData);
 
 		// Draw to mask
+		let obstacleMaskTex = this.m_TexturePool.acquire("r32float");
 		const maskPass = commandEncoder.beginRenderPass({
 			colorAttachments: [{
 				loadOp: "clear",
 				storeOp: "store",
-				view: this.m_ObstacleMaskView,
+				view: obstacleMaskTex.m_View,
 				clearValue: [0, 0, 0, 1]
 			}],
 		});
@@ -1787,10 +1771,14 @@ class BackgroundRenderer {
 
 		edgePass.setBindGroup(0, this.m_ParamsBindGroup);
 		edgePass.setBindGroup(1, this.m_ObstacleVelocityBindGroup);
-		edgePass.setBindGroup(2, this.m_ObstacleMaskBindGroup);
+		edgePass.setBindGroup(2, obstacleMaskTex.m_StorageBindGroup);
 
 		edgePass.draw(4);
 
 		edgePass.end();
+
+		return {
+			obstacleMaskTex: obstacleMaskTex,
+		}
 	}
 }
