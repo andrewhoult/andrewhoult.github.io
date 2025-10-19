@@ -21,7 +21,13 @@ const k_TeleportThreshold = 10;
 
 const k_Inset = 0;
 
+const k_Viscosity = 0.2;
+const k_AdvectSpeed = 250;
+const k_Omega = 1.9;
+const k_SmokeAmt = 20;
+
 let g_BackgroundRenderer;
+let g_DisplayMode = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
 	let canvas = document.getElementById("funny-background-canvas");
@@ -53,8 +59,8 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut {
 // Jacobian solver step to diffuse velocity
 // Renders to v1_tex, swap each iteration
 const k_DiffuseVelocityStepShader = `
-override viscosity: f32 = 0.002; // m^2/s
-override omega: f32 = 1.9;
+override viscosity: f32 = ${k_Viscosity}; // m^2/s
+override omega: f32 = ${k_Omega};
 
 struct Params {
   resolution : vec2<i32>,
@@ -87,6 +93,52 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let v0Right 	= textureLoad(v0_tex, rightCoord).xy;
   let v0Down 	= textureLoad(v0_tex, downCoord).xy;
   let v0Up 		= textureLoad(v0_tex, upCoord).xy;
+
+  var v1 = (v0 + a * (v0Left + v0Right + v0Down + v0Up)) / (1.0 + 4.0 * a);
+
+  // Over-relaxation
+  v1 = mix(v0, v1, omega);
+
+  return v1;
+}
+`;
+
+// Jacobian solver step to diffuse smoke
+const k_DiffuseSmokeStepShader = `
+override viscosity: f32 = ${k_Viscosity};
+override omega: f32 = ${k_Omega};
+
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var smoke_tex : texture_storage_2d<r32float, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  var leftCoord 	= texelCoord + vec2<i32>(-1,  0);
+  var rightCoord 	= texelCoord + vec2<i32>( 1,  0);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(smoke_tex));
+  leftCoord  = (leftCoord  + dim) % dim;
+  rightCoord = (rightCoord + dim) % dim;
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
+
+  let a = viscosity * params.dT; // grid size is 1
+
+  let v0 		= textureLoad(smoke_tex, texelCoord).x;
+  let v0Left 	= textureLoad(smoke_tex, leftCoord).x;
+  let v0Right 	= textureLoad(smoke_tex, rightCoord).x;
+  let v0Down 	= textureLoad(smoke_tex, downCoord).x;
+  let v0Up 		= textureLoad(smoke_tex, upCoord).x;
 
   var v1 = (v0 + a * (v0Left + v0Right + v0Down + v0Up)) / (1.0 + 4.0 * a);
 
@@ -209,11 +261,40 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let v0 = textureSample(v0_tex, v0_sampler, uv).xy;
   
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
-  let takeUV = uv - back * 500;
+  let takeUV = uv - back * ${k_AdvectSpeed};
 
   let v1 = textureSample(v0_tex, v0_sampler, takeUV).xy;
 
   return v1;
+}
+`;
+
+// Advect smoke
+const k_AdvectSmokeShader = `
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
+@group(2) @binding(0) var smoke_tex : texture_2d<f32>;
+@group(2) @binding(1) var smoke_sampler : sampler;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord = vec2<i32>(fragCoord.xy);
+  let uv = fragCoord.xy / vec2<f32>(params.resolution);
+
+  let v0 = textureLoad(v0_tex, texelCoord).xy;
+  
+  let back = -v0 * params.dT / vec2<f32>(params.resolution);
+  let takeUV = uv - back * ${k_AdvectSpeed};
+
+  let smoke = textureSample(smoke_tex, smoke_sampler, takeUV).x;
+
+  return smoke;
 }
 `;
 
@@ -383,9 +464,71 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let texelCoord = vec2<i32>(fragCoord.xy);
   let ogVel = textureLoad(v0_tex, texelCoord).xy;
   let boundVel = textureLoad(boundvel_tex, texelCoord).xy;
-  let isBound: bool = boundVel.x != 9999 || boundVel.y != 9999;
+  let isBound = boundVel.x != 9999 || boundVel.y != 9999;
 
   return select(ogVel, boundVel, isBound);
+}
+`;
+
+// Enforce boundary condition
+const k_EnforceBoundarySmokeShader = `
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var smoke_tex : texture_storage_2d<r32float, read>;
+@group(2) @binding(0) var boundvel_tex : texture_storage_2d<rg32float, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord = vec2<i32>(fragCoord.xy);
+
+  let ogSmoke = textureLoad(smoke_tex, texelCoord).x;
+  let boundVel = textureLoad(boundvel_tex, texelCoord).xy;
+  let isInner: bool = boundVel.x == 0 && boundVel.y == 0;
+
+  return select(ogSmoke, 0.0, isInner);
+}
+`;
+
+// Add smoke at object edges. Requires additive blending.
+const k_AddSmokeShader = `
+override smokeAmt: f32 = ${k_SmokeAmt};
+
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var boundvel_tex : texture_storage_2d<rg32float, read>;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord 	= vec2<i32>(fragCoord.xy);
+  var downCoord 	= texelCoord + vec2<i32>( 0, -1);
+  var upCoord 		= texelCoord + vec2<i32>( 0,  1);
+
+  // Wrap around
+  let dim = vec2<i32>(textureDimensions(boundvel_tex));
+  downCoord  = (downCoord  + dim) % dim;
+  upCoord    = (upCoord    + dim) % dim;
+
+  var v 	= textureLoad(boundvel_tex, texelCoord).y;
+  var vDown = textureLoad(boundvel_tex, downCoord).y;
+  var vUp	= textureLoad(boundvel_tex, upCoord).y;
+
+  v = select(v, 0, v == 9999);
+  vDown = select(vDown, 0, vDown == 9999);
+  vUp = select(vUp, 0, vDown == 9999);
+
+  let isPushed = v != 0 && (vDown != 0 && vUp != 0);
+
+  return select(0.0, abs(v) * smokeAmt * params.dT, isPushed); // Requires additive blending
 }
 `;
 
@@ -603,6 +746,7 @@ class BackgroundRenderer {
 
 	m_CurrentVelocityTex = null;
 	m_CurrentPressureTex = null;
+	m_CurrentSmokeTex = null;
 
 	async init(canvas) {
 		console.log("Renderer init");
@@ -679,6 +823,15 @@ class BackgroundRenderer {
 			}
 		});
 
+		window.addEventListener("keydown", (event) => {
+			if (event.key === "1") {
+				g_DisplayMode = 0;
+			} else if (event.key === "2") {
+				g_DisplayMode = 1;
+			}
+		});
+
+
 		resizeObserver.observe(this.m_Canvas);
 		window.requestAnimationFrame(this.frame);
 	}
@@ -686,10 +839,12 @@ class BackgroundRenderer {
 	m_ParamsBindGroupLayout = null;
 
 	m_DiffuseVelocityPipeline = null;
+	m_DiffuseSmokePipeline = null;
 	m_GetDivergencePipeline = null;
 	m_CalcPressureStepPipeline = null;
 	m_ProjectVelocityPipeline = null;
 	m_AdvectVelocityPipeline = null;
+	m_AdvectSmokePipeline = null;
 
 	m_DisplayVec2TexPipeline = null;
 	m_DisplayVec1TexPipeline = null;
@@ -698,6 +853,8 @@ class BackgroundRenderer {
 	m_DrawObstaclesVelocityPipeline = null;
 	m_ModifyObstaclesVelocityPipeline = null;
 	m_EnforceBoundaryVelocityPipeline = null;
+	m_EnforceBoundarySmokePipeline = null;
+	m_AddSmokePipeline = null;
 
 	createPipelines() {
 		const vertexShaderModule = this.m_Device.createShaderModule({
@@ -742,6 +899,46 @@ class BackgroundRenderer {
 						}
 					},
 					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const diffuseSmokePipelineLayout = this.m_Device.createPipelineLayout({
+			label: "diffuseSmokePipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec1StorageTexBindGroupLayout]
+		});
+
+		const diffuseSmokeModule = this.m_Device.createShaderModule({
+			code: k_DiffuseSmokeStepShader,
+		});
+
+		this.m_DiffuseSmokePipeline = this.m_Device.createRenderPipeline({
+			label: "Diffuse smoke pipeline",
+			layout: diffuseSmokePipelineLayout,
+			fragment: {
+				module: diffuseSmokeModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "r32float"
 				}],
 			},
 			vertex: {
@@ -902,6 +1099,50 @@ class BackgroundRenderer {
 						}
 					},
 					format: "rg32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const advectSmokePipelineLayout = this.m_Device.createPipelineLayout({
+			label: "advectSmokePipelineLayout",
+			bindGroupLayouts: [
+				this.m_ParamsBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+				this.m_TexturePool.m_SampledTexBindGroupLayout
+			]
+		});
+
+		const advectSmokeStepModule = this.m_Device.createShaderModule({
+			code: k_AdvectSmokeShader,
+		});
+
+		this.m_AdvectSmokePipeline = this.m_Device.createRenderPipeline({
+			label: "Advect smoke pipeline",
+			layout: advectSmokePipelineLayout,
+			fragment: {
+				module: advectSmokeStepModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "r32float"
 				}],
 			},
 			vertex: {
@@ -1144,6 +1385,81 @@ class BackgroundRenderer {
 				cullMode: "back",
 			},
 		});
+
+		const enforceBoundarySmokePipelineLayout = this.m_Device.createPipelineLayout({
+			label: "enforceBoundarySmokePipelineLayout",
+			bindGroupLayouts: [
+				this.m_ParamsBindGroupLayout,
+				this.m_TexturePool.m_Vec1StorageTexBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+			]
+		});
+
+		const enforceBoundarySmokeModule = this.m_Device.createShaderModule({
+			code: k_EnforceBoundarySmokeShader,
+		});
+
+		this.m_EnforceBoundarySmokePipeline = this.m_Device.createRenderPipeline({
+			label: "Enforce boundary smoke pipeline",
+			layout: enforceBoundarySmokePipelineLayout,
+			fragment: {
+				module: enforceBoundarySmokeModule,
+				targets: [{
+					format: "r32float"
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
+
+		const addSmokePipelineLayout = this.m_Device.createPipelineLayout({
+			label: "addSmokePipelineLayout",
+			bindGroupLayouts: [
+				this.m_ParamsBindGroupLayout,
+				this.m_TexturePool.m_Vec2StorageTexBindGroupLayout,
+			]
+		});
+
+		const addSmokeModule = this.m_Device.createShaderModule({
+			code: k_AddSmokeShader,
+		});
+
+		this.m_AddSmokePipeline = this.m_Device.createRenderPipeline({
+			label: "Add smoke pipeline",
+			layout: addSmokePipelineLayout,
+			fragment: {
+				module: addSmokeModule,
+				targets: [{
+					blend: {
+						color: {
+							srcFactor: "one",
+							dstFactor: "one",
+							operation: "add"
+						},
+						alpha: {
+							srcFactor: "one",
+							dstFactor: "zero",
+							operation: "add"
+						}
+					},
+					format: "r32float",
+				}],
+			},
+			vertex: {
+				module: vertexShaderModule,
+			},
+			primitive: {
+				topology: "triangle-strip",
+				frontFace: "ccw",
+				cullMode: "back",
+			},
+		});
 	}
 
 	m_ParamsBuffer = null;
@@ -1232,24 +1548,16 @@ class BackgroundRenderer {
 
 		if (this.m_SimWidth != this.m_TexturePool.m_SimWidth ||
 			this.m_SimHeight != this.m_TexturePool.m_SimHeight) {
-			if (this.m_CurrentVelocityTex !== null) {
-				this.m_TexturePool.release(this.m_CurrentVelocityTex);
-			}
-			if (this.m_CurrentPressureTex !== null) {
-				this.m_TexturePool.release(this.m_CurrentPressureTex);
-			}
 			this.m_CurrentVelocityTex = null;
 			this.m_CurrentPressureTex = null;
+			this.m_CurrentSmokeTex = null;
 
 			this.m_TexturePool.setSize(this.m_SimWidth, this.m_SimHeight);
 		}
 
-		if (this.m_CurrentVelocityTex == null) {
-			this.m_CurrentVelocityTex = this.m_TexturePool.acquire("rg32float");
-		}
-		if (this.m_CurrentPressureTex == null) {
-			this.m_CurrentPressureTex = this.m_TexturePool.acquire("r32float");
-		}
+		if (this.m_CurrentVelocityTex == null) this.m_CurrentVelocityTex = this.m_TexturePool.acquire("rg32float");
+		if (this.m_CurrentPressureTex == null) this.m_CurrentPressureTex = this.m_TexturePool.acquire("r32float");
+		if (this.m_CurrentSmokeTex == null) this.m_CurrentSmokeTex = this.m_TexturePool.acquire("r32float");
 
 		this.updateObstacles();
 
@@ -1319,8 +1627,38 @@ class BackgroundRenderer {
 
 				this.m_TexturePool.release(old);
 
-				// acts as the swap
 				this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
+			}
+		}
+
+		// Diffuse smoke
+		{
+			for (let i = 0; i < k_VelocityDiffuseSteps; ++i) {
+				let nextSmokeTex = this.m_TexturePool.acquire("r32float");
+
+				const diffuseStepPass = commandEncoder.beginRenderPass({
+					colorAttachments: [{
+						loadOp: "load",
+						storeOp: "store",
+						view: nextSmokeTex.m_View,
+					}],
+				});
+
+				diffuseStepPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+				diffuseStepPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+				diffuseStepPass.setPipeline(this.m_DiffuseSmokePipeline);
+
+				diffuseStepPass.setBindGroup(0, this.m_ParamsBindGroup);
+				diffuseStepPass.setBindGroup(1, this.m_CurrentSmokeTex.m_StorageBindGroup);
+
+				diffuseStepPass.draw(4);
+				diffuseStepPass.end();
+
+				const old = this.m_CurrentSmokeTex;
+				this.m_CurrentSmokeTex = nextSmokeTex;
+				nextSmokeTex = null;
+
+				this.m_TexturePool.release(old);
 			}
 		}
 
@@ -1355,6 +1693,36 @@ class BackgroundRenderer {
 			this.m_TexturePool.release(old);
 		}
 
+		// Advect smoke
+		{
+			let nextSmokeTex = this.m_TexturePool.acquire("r32float");
+
+			const advectSmokePass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: nextSmokeTex.m_View,
+				}],
+			});
+
+			advectSmokePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			advectSmokePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			advectSmokePass.setPipeline(this.m_AdvectSmokePipeline);
+
+			advectSmokePass.setBindGroup(0, this.m_ParamsBindGroup);
+			advectSmokePass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
+			advectSmokePass.setBindGroup(2, this.m_CurrentSmokeTex.m_SampledBindGroup);
+
+			advectSmokePass.draw(4);
+			advectSmokePass.end();
+
+			const old = this.m_CurrentSmokeTex;
+			this.m_CurrentSmokeTex = nextSmokeTex;
+			nextSmokeTex = null;
+
+			this.m_TexturePool.release(old);
+		}
+
 		this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
 		this.projectStep(commandEncoder);
 		this.enforceVelocityBoundary(commandEncoder, obstacleVelocityTex);
@@ -1362,8 +1730,8 @@ class BackgroundRenderer {
 		this.m_TexturePool.release(obstacleVelocityTex);
 		obstacleVelocityTex = null;
 
-		// Display velocity
-		{
+		if (g_DisplayMode == 1) {
+			// Display velocity
 			const displayPass = commandEncoder.beginRenderPass({
 				colorAttachments: [{
 					loadOp: "clear",
@@ -1383,6 +1751,27 @@ class BackgroundRenderer {
 			displayPass.draw(4);
 			displayPass.end();
 		}
+		else if (g_DisplayMode == 0) {
+			// Display Smoke
+			const displayPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "clear",
+					storeOp: "store",
+					view: renderView,
+					clearValue: [0, 0, 0, 1],
+				}],
+			});
+
+			displayPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
+			displayPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
+			displayPass.setPipeline(this.m_DisplayVec1TexPipeline);
+
+			displayPass.setBindGroup(0, this.m_DebugParamsBindGroup);
+			displayPass.setBindGroup(1, this.m_CurrentSmokeTex.m_StorageBindGroup);
+
+			displayPass.draw(4);
+			displayPass.end();
+		}
 
 		this.m_Device.queue.submit([commandEncoder.finish()]);
 
@@ -1392,32 +1781,65 @@ class BackgroundRenderer {
 	}
 
 	enforceVelocityBoundary(commandEncoder, obstacleVelocityTex) {
-		let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
+		// Enforce velocity
+		{
+			let nextVelocityTex = this.m_TexturePool.acquire("rg32float");
 
-		const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				loadOp: "load",
-				storeOp: "store",
-				view: nextVelocityTex.m_View,
-			}],
-		});
+			const enforceBoundaryVelPass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: nextVelocityTex.m_View,
+				}],
+			});
 
-		enforceBoundaryVelPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
-		enforceBoundaryVelPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
-		enforceBoundaryVelPass.setPipeline(this.m_EnforceBoundaryVelocityPipeline);
+			enforceBoundaryVelPass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			enforceBoundaryVelPass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			enforceBoundaryVelPass.setPipeline(this.m_EnforceBoundaryVelocityPipeline);
 
-		enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
-		enforceBoundaryVelPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
-		enforceBoundaryVelPass.setBindGroup(2, obstacleVelocityTex.m_StorageBindGroup);
+			enforceBoundaryVelPass.setBindGroup(0, this.m_ParamsBindGroup);
+			enforceBoundaryVelPass.setBindGroup(1, this.m_CurrentVelocityTex.m_StorageBindGroup);
+			enforceBoundaryVelPass.setBindGroup(2, obstacleVelocityTex.m_StorageBindGroup);
 
-		enforceBoundaryVelPass.draw(4);
-		enforceBoundaryVelPass.end();
+			enforceBoundaryVelPass.draw(4);
+			enforceBoundaryVelPass.end();
 
-		const old = this.m_CurrentVelocityTex;
-		this.m_CurrentVelocityTex = nextVelocityTex;
-		nextVelocityTex = null;
+			const old = this.m_CurrentVelocityTex;
+			this.m_CurrentVelocityTex = nextVelocityTex;
+			nextVelocityTex = null;
 
-		this.m_TexturePool.release(old);
+			this.m_TexturePool.release(old);
+		}
+
+		// Enforce smoke
+		{
+			let nextSmokeTex = this.m_TexturePool.acquire("r32float");
+
+			const enforceBoundarySmokePass = commandEncoder.beginRenderPass({
+				colorAttachments: [{
+					loadOp: "load",
+					storeOp: "store",
+					view: nextSmokeTex.m_View,
+				}],
+			});
+
+			enforceBoundarySmokePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+			enforceBoundarySmokePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+			enforceBoundarySmokePass.setPipeline(this.m_EnforceBoundarySmokePipeline);
+
+			enforceBoundarySmokePass.setBindGroup(0, this.m_ParamsBindGroup);
+			enforceBoundarySmokePass.setBindGroup(1, this.m_CurrentSmokeTex.m_StorageBindGroup);
+			enforceBoundarySmokePass.setBindGroup(2, obstacleVelocityTex.m_StorageBindGroup);
+
+			enforceBoundarySmokePass.draw(4);
+			enforceBoundarySmokePass.end();
+
+			const old = this.m_CurrentSmokeTex;
+			this.m_CurrentSmokeTex = nextSmokeTex;
+			nextSmokeTex = null;
+
+			this.m_TexturePool.release(old);
+		}
 	}
 
 	projectStep(commandEncoder) {
@@ -1628,6 +2050,26 @@ class BackgroundRenderer {
 
 		this.m_TexturePool.release(obstacleVelocityTex);
 		obstacleVelocityTex = null;
+
+		// Add smoke
+		const smokePass = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				loadOp: "load",
+				storeOp: "store",
+				view: this.m_CurrentSmokeTex.m_View
+			}],
+		});
+
+		smokePass.setViewport(0, 0, this.m_SimWidth, this.m_SimHeight, 0, 1);
+		smokePass.setScissorRect(0, 0, this.m_SimWidth, this.m_SimHeight);
+		smokePass.setPipeline(this.m_AddSmokePipeline);
+
+		smokePass.setBindGroup(0, this.m_ParamsBindGroup);
+		smokePass.setBindGroup(1, obstacleVelocityTex2.m_StorageBindGroup);
+
+		smokePass.draw(4);
+
+		smokePass.end();
 
 		return obstacleVelocityTex2;
 	}
