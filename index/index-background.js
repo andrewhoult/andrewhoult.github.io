@@ -88,8 +88,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let dim = vec2<i32>(textureDimensions(v0_tex));
   leftCoord  = (leftCoord  + dim) % dim;
   rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  // downCoord  = (downCoord  + dim) % dim;
+  // upCoord    = (upCoord    + dim) % dim;
+
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let a = viscosity * params.dT; // grid size is 1
 
@@ -134,8 +137,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   let dim = vec2<i32>(textureDimensions(smoke_tex));
   leftCoord  = (leftCoord  + dim) % dim;
   rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  // downCoord  = (downCoord  + dim) % dim;
+  // upCoord    = (upCoord    + dim) % dim;
+
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let a = viscosity * params.dT; // grid size is 1
 
@@ -170,8 +176,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   let dim = vec2<i32>(textureDimensions(v_tex));
   leftCoord  = (leftCoord  + dim) % dim;
   rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  // downCoord  = (downCoord  + dim) % dim;
+  // upCoord    = (upCoord    + dim) % dim;
+
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let vLeft 	= textureLoad(v_tex, leftCoord).xy;
   let vRight 	= textureLoad(v_tex, rightCoord).xy;
@@ -202,8 +211,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   let dim = vec2<i32>(textureDimensions(p0_tex));
   leftCoord  = (leftCoord  + dim) % dim;
   rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  // downCoord  = (downCoord  + dim) % dim;
+  // upCoord    = (upCoord    + dim) % dim;
+
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let div 		= textureLoad(div_tex, texelCoord).x;
   let p0Left 	= textureLoad(p0_tex,  leftCoord).x;
@@ -234,8 +246,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let dim = vec2<i32>(textureDimensions(p_tex));
   leftCoord  = (leftCoord  + dim) % dim;
   rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  // downCoord  = (downCoord  + dim) % dim;
+  // upCoord    = (upCoord    + dim) % dim;
+
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let pLeft 	= textureLoad(p_tex,  leftCoord).x;
   let pRight 	= textureLoad(p_tex,  rightCoord).x;
@@ -266,36 +281,40 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let v0 = textureSample(v0_tex, v0_sampler, uv).xy;
   
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
-  let takeUV = uv - back * ${k_VelocityAdvectSpeed};
+  var takeUV = uv - back * ${k_VelocityAdvectSpeed};
 
-  let v1 = textureSample(v0_tex, v0_sampler, takeUV).xy;
-
-  return v1;
-}
-`;
-
-// Advect smoke
-const k_AdvectSmokeShader = `
-struct Params {
-  resolution : vec2<i32>,
-  dT : f32,
-  _pad : i32,
-};
-
-@group(0) @binding(0) var<uniform> params : Params;
-@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
-@group(2) @binding(0) var smoke_tex : texture_2d<f32>;
-@group(2) @binding(1) var smoke_sampler : sampler;
-
-@fragment
-fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
-  let texelCoord = vec2<i32>(fragCoord.xy);
-  let uv = fragCoord.xy / vec2<f32>(params.resolution);
-
-  let v0 = textureLoad(v0_tex, texelCoord).xy;
+  takeUV.y = min(max(takeUV.y, 0), 1);
   
+  let v1 = textureSample(v0_tex, v0_sampler, takeUV).xy;
+  
+  return v1;
+  }
+  `;
+  
+  // Advect smoke
+  const k_AdvectSmokeShader = `
+  struct Params {
+	resolution : vec2<i32>,
+	dT : f32,
+	_pad : i32,
+	};
+	
+	@group(0) @binding(0) var<uniform> params : Params;
+	@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
+	@group(2) @binding(0) var smoke_tex : texture_2d<f32>;
+	@group(2) @binding(1) var smoke_sampler : sampler;
+	
+	@fragment
+	fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+		let texelCoord = vec2<i32>(fragCoord.xy);
+		let uv = fragCoord.xy / vec2<f32>(params.resolution);
+		
+		let v0 = textureLoad(v0_tex, texelCoord).xy;
+		
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
-  let takeUV = uv - back * ${k_SmokeAdvectSpeed};
+  var takeUV = uv - back * ${k_SmokeAdvectSpeed};
+
+  takeUV.y = min(max(takeUV.y, 0), 1);
 
   let smoke = textureSample(smoke_tex, smoke_sampler, takeUV).x;
 
@@ -449,7 +468,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let isEdge = mask && (maskLeft != maskRight || maskDown != maskUp);
 
   // return select(vec2(0.0, 0.0), v0, isEdge || !mask);
-  return v0;
+
+  let v1 = select(v0, vec2(0.0, 0.0), texelCoord.y == 0 || texelCoord.y == (dim.y - 1));
+  return v1;
 }
 `;
 
