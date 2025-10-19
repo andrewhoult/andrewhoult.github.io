@@ -17,6 +17,8 @@
 	border-width: 0.5px;
 	border-style: solid;
 	border-color: transparent;
+
+	background: black;
 }
 
 .project-card-container:hover .project-card {
