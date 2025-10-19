@@ -22,14 +22,14 @@ const k_TeleportThreshold = 10;
 
 const k_Inset = 0;
 
-const k_VelocityViscosity = 0.2;
-const k_SmokeViscosity = 2;
+const k_VelocityViscosity = 0.02;
+const k_SmokeViscosity = 1;
 const k_VelocityAdvectSpeed = 100;
-const k_SmokeAdvectSpeed = 250;
+const k_SmokeAdvectSpeed = 100;
 const k_Omega = 1.8;
-const k_SmokeAmt = 10;
-const k_SmokeFade = 0.05;
-const k_VelocityFade = 1;
+const k_SmokeAmt = 20;
+const k_SmokeFade = 0.5;
+const k_VelocityFade = 0.5;
 
 let g_BackgroundRenderer;
 let g_DisplayMode = 0;
@@ -84,13 +84,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(v0_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  // downCoord  = (downCoord  + dim) % dim;
-  // upCoord    = (upCoord    + dim) % dim;
-
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
@@ -133,13 +129,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(smoke_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  // downCoord  = (downCoord  + dim) % dim;
-  // upCoord    = (upCoord    + dim) % dim;
-
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
@@ -172,13 +164,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(v_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  // downCoord  = (downCoord  + dim) % dim;
-  // upCoord    = (upCoord    + dim) % dim;
-
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
@@ -207,13 +195,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(p0_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  // downCoord  = (downCoord  + dim) % dim;
-  // upCoord    = (upCoord    + dim) % dim;
-
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
@@ -242,13 +226,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(p_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  // downCoord  = (downCoord  + dim) % dim;
-  // upCoord    = (upCoord    + dim) % dim;
-
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
@@ -283,6 +263,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
   var takeUV = uv - back * ${k_VelocityAdvectSpeed};
 
+  takeUV.x = min(max(takeUV.x, 0), 1);
   takeUV.y = min(max(takeUV.y, 0), 1);
   
   let v1 = textureSample(v0_tex, v0_sampler, takeUV).xy;
@@ -291,29 +272,30 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   }
   `;
   
-  // Advect smoke
-  const k_AdvectSmokeShader = `
-  struct Params {
-	resolution : vec2<i32>,
-	dT : f32,
-	_pad : i32,
-	};
-	
-	@group(0) @binding(0) var<uniform> params : Params;
-	@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
-	@group(2) @binding(0) var smoke_tex : texture_2d<f32>;
-	@group(2) @binding(1) var smoke_sampler : sampler;
-	
-	@fragment
-	fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
-		let texelCoord = vec2<i32>(fragCoord.xy);
-		let uv = fragCoord.xy / vec2<f32>(params.resolution);
-		
-		let v0 = textureLoad(v0_tex, texelCoord).xy;
+// Advect smoke
+const k_AdvectSmokeShader = `
+struct Params {
+  resolution : vec2<i32>,
+  dT : f32,
+  _pad : i32,
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(1) @binding(0) var v0_tex : texture_storage_2d<rg32float, read>;
+@group(2) @binding(0) var smoke_tex : texture_2d<f32>;
+@group(2) @binding(1) var smoke_sampler : sampler;
+
+@fragment
+fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
+  let texelCoord = vec2<i32>(fragCoord.xy);
+  let uv = fragCoord.xy / vec2<f32>(params.resolution);
+
+  let v0 = textureLoad(v0_tex, texelCoord).xy;
 		
   let back = -v0 * params.dT / vec2<f32>(params.resolution);
   var takeUV = uv - back * ${k_SmokeAdvectSpeed};
 
+  takeUV.x = min(max(takeUV.x, 0), 1);
   takeUV.y = min(max(takeUV.y, 0), 1);
 
   let smoke = textureSample(smoke_tex, smoke_sampler, takeUV).x;
@@ -363,23 +345,25 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
 }
 `;
 
-const k_DisplayVec1uTexShader = `
+const k_DisplaySmokeShader = `
 struct Params {
   screenSize : vec2<i32>,
   resolution : vec2<i32>,
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
-@group(1) @binding(0) var v_tex : texture_storage_2d<r32uint, read>;
+@group(1) @binding(0) var smoke_tex : texture_2d<f32>;
+@group(1) @binding(1) var smoke_sampler : sampler;
 
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
   let uv = vec2<f32>(fragCoord.xy / vec2<f32>(params.screenSize));
-  let texCoord = vec2<i32>(uv * vec2<f32>(params.resolution));
 
-  let v = textureLoad(v_tex, texCoord).x;
+  let smoke = textureSample(smoke_tex, smoke_sampler, uv).x;
   
-  return vec4<f32>(f32(v), f32(v), f32(v), 1);
+  let smokeColor = vec3(236, 149, 80) / 255.0;
+
+  return vec4<f32>(smokeColor * smoke, 1);
 }
 `;
 
@@ -446,12 +430,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(v0_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   let v0		= textureLoad(v0_tex, texelCoord).xy;
   let v0Left	= textureLoad(v0_tex, leftCoord).xy;
@@ -518,12 +501,11 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   var downCoord 	= texelCoord + vec2<i32>( 0, -1);
   var upCoord 		= texelCoord + vec2<i32>( 0,  1);
 
-  // Wrap around
   let dim = vec2<i32>(textureDimensions(boundvel_tex));
-  leftCoord  = (leftCoord  + dim) % dim;
-  rightCoord = (rightCoord + dim) % dim;
-  downCoord  = (downCoord  + dim) % dim;
-  upCoord    = (upCoord    + dim) % dim;
+  leftCoord.x = max(leftCoord.x, 0);
+  rightCoord.x = min(rightCoord.x, dim.x - 1);
+  downCoord.y = max(downCoord.y, 0);
+  upCoord.y = min(upCoord.y, dim.y - 1);
 
   var v 	 = textureLoad(boundvel_tex, texelCoord).y;
   var vLeft  = textureLoad(boundvel_tex, leftCoord).y;
@@ -539,7 +521,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
 
   let isPushed = v != 0 && (vLeft == 0 || vRight == 0);
 
-  return select(0.0, smokeAmt * params.dT, isPushed); // Requires additive blending
+  return select(0.0, abs(v) * smokeAmt * params.dT, isPushed); // Requires additive blending
 }
 `;
 
@@ -622,7 +604,6 @@ class TexturePool {
 
 	m_Vec2StorageTexBindGroupLayout = null;
 	m_Vec1StorageTexBindGroupLayout = null;
-	m_Vec1uStorageTexBindGroupLayout = null;
 	m_SampledTexBindGroupLayout = null;
 
 	m_Counter = 0;
@@ -659,19 +640,6 @@ class TexturePool {
 			]
 		});
 
-		this.m_Vec1uStorageTexBindGroupLayout = this.m_Device.createBindGroupLayout({
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					storageTexture: {
-						access: "read-only",
-						format: "r32uint",
-					},
-				},
-			]
-		});
-
 		this.m_SampledTexBindGroupLayout = this.m_Device.createBindGroupLayout({
 			entries: [
 				{
@@ -689,8 +657,8 @@ class TexturePool {
 
 		// create sampler
 		this.m_Sampler = this.m_Device.createSampler({
-			addressModeU: "repeat",
-			addressModeV: "repeat",
+			addressModeU: "clamp-to-edge",
+			addressModeV: "clamp-to-edge",
 			magFilter: "linear",
 			minFilter: "linear",
 		});
@@ -736,9 +704,6 @@ class TexturePool {
 					break;
 				case "rg32float":
 					layout = this.m_Vec2StorageTexBindGroupLayout
-					break;
-				case "r32uint":
-					layout = this.m_Vec1uStorageTexBindGroupLayout
 					break;
 			}
 
@@ -920,7 +885,7 @@ class BackgroundRenderer {
 
 	m_DisplayVec2TexPipeline = null;
 	m_DisplayVec1TexPipeline = null;
-	m_DisplayVec1uTexPipeline = null;
+	m_DisplaySmokePipeline = null;
 
 	m_DrawObstaclesVelocityPipeline = null;
 	m_ModifyObstaclesVelocityPipeline = null;
@@ -1144,18 +1109,6 @@ class BackgroundRenderer {
 			fragment: {
 				module: advectSmokeStepModule,
 				targets: [{
-					blend: {
-						color: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						},
-						alpha: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						}
-					},
 					format: "r32float"
 				}],
 			},
@@ -1183,18 +1136,6 @@ class BackgroundRenderer {
 			fragment: {
 				module: displayVec2TexModule,
 				targets: [{
-					blend: {
-						color: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						},
-						alpha: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						}
-					},
 					format: navigator.gpu.getPreferredCanvasFormat()
 				}],
 			},
@@ -1222,18 +1163,6 @@ class BackgroundRenderer {
 			fragment: {
 				module: displayVec1TexModule,
 				targets: [{
-					blend: {
-						color: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						},
-						alpha: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						}
-					},
 					format: navigator.gpu.getPreferredCanvasFormat()
 				}],
 			},
@@ -1247,32 +1176,21 @@ class BackgroundRenderer {
 			},
 		});
 
-		const displayVec1uTexPipelineLayout = this.m_Device.createPipelineLayout({
-			label: "displayVec1uTexPipelineLayout",
-			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_Vec1uStorageTexBindGroupLayout]
+		const displaySmokePipelineLayout = this.m_Device.createPipelineLayout({
+			label: "displaySmokePipelineLayout",
+			bindGroupLayouts: [this.m_ParamsBindGroupLayout, this.m_TexturePool.m_SampledTexBindGroupLayout]
 		});
 
-		const displayVec1uTexModule = this.m_Device.createShaderModule({
-			code: k_DisplayVec1uTexShader,
+		const displaySmokeModule = this.m_Device.createShaderModule({
+			code: k_DisplaySmokeShader,
 		});
 
-		this.m_DisplayVec1uTexPipeline = this.m_Device.createRenderPipeline({
-			layout: displayVec1uTexPipelineLayout,
+		this.m_DisplaySmokePipeline = this.m_Device.createRenderPipeline({
+			label: "m_DisplaySmokePipeline",
+			layout: displaySmokePipelineLayout,
 			fragment: {
-				module: displayVec1uTexModule,
+				module: displaySmokeModule,
 				targets: [{
-					blend: {
-						color: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						},
-						alpha: {
-							srcFactor: "one",
-							dstFactor: "zero",
-							operation: "add"
-						}
-					},
 					format: navigator.gpu.getPreferredCanvasFormat()
 				}],
 			},
@@ -1508,7 +1426,6 @@ class BackgroundRenderer {
 
 	m_ParamsBuffer = null;
 	m_DebugParamsBuffer = null;
-	m_Sampler = null;
 
 	m_ObstacleInstanceBuffer = null;
 
@@ -1538,13 +1455,6 @@ class BackgroundRenderer {
 			size: 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "Debug Params Buffer"
-		});
-
-		this.m_Sampler = this.m_Device.createSampler({
-			addressModeU: "repeat",
-			addressModeV: "repeat",
-			magFilter: "linear",
-			minFilter: "linear",
 		});
 
 		this.createObstacleInstanceBuffer();
@@ -1798,6 +1708,7 @@ class BackgroundRenderer {
 		else if (g_DisplayMode == 0) {
 			// Display Smoke
 			const displayPass = commandEncoder.beginRenderPass({
+				label: "Display Smoke",
 				colorAttachments: [{
 					loadOp: "clear",
 					storeOp: "store",
@@ -1808,10 +1719,10 @@ class BackgroundRenderer {
 
 			displayPass.setViewport(0, 0, renderTexture.width, renderTexture.height, 0, 1);
 			displayPass.setScissorRect(0, 0, renderTexture.width, renderTexture.height);
-			displayPass.setPipeline(this.m_DisplayVec1TexPipeline);
+			displayPass.setPipeline(this.m_DisplaySmokePipeline);
 
 			displayPass.setBindGroup(0, this.m_DebugParamsBindGroup);
-			displayPass.setBindGroup(1, this.m_CurrentSmokeTex.m_StorageBindGroup);
+			displayPass.setBindGroup(1, this.m_CurrentSmokeTex.m_SampledBindGroup);
 
 			displayPass.draw(4);
 			displayPass.end();
