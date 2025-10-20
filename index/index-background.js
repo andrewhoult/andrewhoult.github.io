@@ -20,7 +20,7 @@ const k_ObstacleInstanceSize = 24;
 
 const k_TeleportThreshold = 10;
 
-const k_Inset = -4;
+const k_Inset = 0;
 
 const k_VelocityViscosity = 0.2;
 const k_SmokeViscosity = 0.2;
@@ -355,6 +355,10 @@ struct Params {
 @group(1) @binding(0) var smoke_tex : texture_2d<f32>;
 @group(1) @binding(1) var smoke_sampler : sampler;
 
+fn blend_linear_vec(a: vec3<f32>, b: vec3<f32>, t: f32) -> vec3<f32> {
+    return a + t * (b - a);
+}
+
 @fragment
 fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
   let uv = vec2<f32>(fragCoord.xy / vec2<f32>(params.screenSize));
@@ -362,8 +366,9 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f
   let smoke = textureSample(smoke_tex, smoke_sampler, uv).x;
   
   let smokeColor = vec3(236, 149, 80) / 255.0;
+  let color = blend_linear_vec(vec3(0.05, 0.05, 0.05), smokeColor, smoke);
 
-  return vec4<f32>(smokeColor * smoke, 1);
+  return vec4(color, 1);
 }
 `;
 
