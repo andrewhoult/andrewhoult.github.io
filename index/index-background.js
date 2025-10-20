@@ -20,16 +20,16 @@ const k_ObstacleInstanceSize = 24;
 
 const k_TeleportThreshold = 10;
 
-const k_Inset = 0;
+const k_Inset = -4;
 
-const k_VelocityViscosity = 0.02;
-const k_SmokeViscosity = 1;
+const k_VelocityViscosity = 0.2;
+const k_SmokeViscosity = 0.2;
 const k_VelocityAdvectSpeed = 100;
 const k_SmokeAdvectSpeed = 100;
-const k_Omega = 1.8;
-const k_SmokeAmt = 20;
-const k_SmokeFade = 0.5;
-const k_VelocityFade = 0.5;
+const k_Omega = 1;
+const k_SmokeAmt = 10;
+const k_SmokeFade = 2;
+const k_VelocityFade = 0.2;
 
 let g_BackgroundRenderer;
 let g_DisplayMode = 0;
@@ -436,7 +436,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   downCoord.y = max(downCoord.y, 0);
   upCoord.y = min(upCoord.y, dim.y - 1);
 
-  let v0		= textureLoad(v0_tex, texelCoord).xy;
+  var v0		= textureLoad(v0_tex, texelCoord).xy;
   let v0Left	= textureLoad(v0_tex, leftCoord).xy;
   let v0Right	= textureLoad(v0_tex, rightCoord).xy;
   let v0Down	= textureLoad(v0_tex, downCoord).xy;
@@ -448,12 +448,12 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let maskDown 	= v0Down.x != 9999 	|| v0Down.y != 9999;
   let maskUp 	= v0Up.x != 9999 	|| v0Up.y != 9999;
 
-  let isEdge = mask && (maskLeft != maskRight || maskDown != maskUp);
+  v0.y = select(-v0.y, v0.y, v0.y == 9999);
 
-  // return select(vec2(0.0, 0.0), v0, isEdge || !mask);
+  let isBoxCentre = mask && maskLeft && maskRight && maskDown && maskUp;
+  let isMapEdge = texelCoord.x == 0 || texelCoord.x == (dim.x - 1) || texelCoord.y == 0 || texelCoord.y == (dim.y - 1);
 
-  let v1 = select(v0, vec2(0.0, 0.0), texelCoord.y == 0 || texelCoord.y == (dim.y - 1));
-  return v1;
+  return select(v0, vec2(0.0, 0.0), isMapEdge);
 }
 `;
 
@@ -517,7 +517,7 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   vLeft = select(vLeft, 0, vLeft == 9999);
   vRight = select(vRight, 0, vRight == 9999);
   vDown = select(vDown, 0, vDown == 9999);
-  vUp = select(vUp, 0, vDown == 9999);
+  vUp = select(vUp, 0, vUp == 9999);
 
   let isPushed = v != 0 && (vLeft == 0 || vRight == 0);
 
