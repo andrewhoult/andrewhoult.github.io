@@ -28,7 +28,7 @@ const k_VelocityAdvectSpeed = 100;
 const k_SmokeAdvectSpeed = 100;
 const k_Omega = 1;
 const k_SmokeAmt = 10;
-const k_SmokeFade = 2;
+const k_SmokeFade = 1;
 const k_VelocityFade = 0.2;
 
 let g_BackgroundRenderer;
