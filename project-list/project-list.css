@@ -18,7 +18,7 @@
 	border-style: solid;
 	border-color: transparent;
 
-	background: linear-gradient(90deg, black 0%, black 70%);
+	background: linear-gradient(90deg, #070707 0%, #070707 70%);
 }
 
 .project-card-container:hover .project-card {
