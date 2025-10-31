@@ -26,10 +26,10 @@ const k_VelocityViscosity = 0.2;
 const k_SmokeViscosity = 0.2;
 const k_VelocityAdvectSpeed = 100;
 const k_SmokeAdvectSpeed = 100;
-const k_Omega = 1;
-const k_SmokeAmt = 10;
+const k_Omega = 1.9;
+const k_SmokeAmt = 20;
 const k_SmokeFade = 1;
-const k_VelocityFade = 0.2;
+const k_VelocityFade = 0.01;
 
 let g_BackgroundRenderer;
 let g_DisplayMode = 0;
@@ -406,6 +406,7 @@ fn vertex_main(@builtin(vertex_index) vertexIndex : u32, in : VertexIn) -> Verte
   output.position = vec4f(pos, 1.0);
 
   output.velocity = in.velocity;
+  // output.velocity.y = -output.velocity.y;
 
   return output;
 }
@@ -452,8 +453,6 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec2<f
   let maskRight = v0Right.x != 9999 || v0Right.y != 9999;
   let maskDown 	= v0Down.x != 9999 	|| v0Down.y != 9999;
   let maskUp 	= v0Up.x != 9999 	|| v0Up.y != 9999;
-
-  v0.y = select(-v0.y, v0.y, v0.y == 9999);
 
   let isBoxCentre = mask && maskLeft && maskRight && maskDown && maskUp;
   let isMapEdge = texelCoord.x == 0 || texelCoord.x == (dim.x - 1) || texelCoord.y == 0 || texelCoord.y == (dim.y - 1);
@@ -524,9 +523,10 @@ fn fragment_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) f32 {
   vDown = select(vDown, 0, vDown == 9999);
   vUp = select(vUp, 0, vUp == 9999);
 
+  // let isPushed = v != 0 && (vLeft == 0 || vRight == 0 || vDown == 0 || vUp == 0);
   let isPushed = v != 0 && (vLeft == 0 || vRight == 0);
 
-  return select(0.0, abs(v) * smokeAmt * params.dT, isPushed); // Requires additive blending
+  return select(0.0, smokeAmt * params.dT, isPushed); // Requires additive blending
 }
 `;
 
