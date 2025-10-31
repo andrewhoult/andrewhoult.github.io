@@ -42,10 +42,9 @@ html {
 	bottom: 10vh;
 }
 
-@media (max-width: 1559px) {
-	.main-content {
-		max-width: min(800px, calc(100% - 40px));
-		margin: auto;
+@media screen and (max-width: 1200px) {
+	.funny-bg {
+		display: none;
 	}
 }
 
@@ -58,6 +57,11 @@ html {
 @media screen and (max-width: 1559px) {
 	.hide-mobile {
 		display: none;
+	}
+
+	.main-content {
+		max-width: min(800px, calc(100% - 40px));
+		margin: auto;
 	}
 }
 
