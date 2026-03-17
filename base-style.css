@@ -23,8 +23,8 @@ html {
 }
 
 body {
-	background-color: #111212;
-	color: #f2e3cc;
+	background-color: #fffae6;
+	color: #1f1100;
 	margin: 0;
 }
 
@@ -41,7 +41,7 @@ h2 {
 
 hr {
 	border-width: 1px;
-	border-color: lightgray;
+	border-color: #1f1100;
 	border-style: solid;
 }
 
@@ -51,13 +51,13 @@ ul * {
 
 a {
 	text-decoration: none;
-	color: #f6e4d1;
+	color: #1f1100;
 	font-weight: 550;
 	font-size: 1em;
 }
 
 .subtitle {
-	color: #baafa3;
+	color: #1f1100;
 	font-size: 0.9em;
 }
 
@@ -65,23 +65,23 @@ a {
 	font-weight: 450;
 	font-size: 1.2em;
 	transition: 0.1s;
-	color: #f6e4d1;
+	color: #1f1100;
 }
 
 .fancy-link:hover {
 	text-decoration: underline;
 	padding-left: 5px;
-	color: #f6e4d1;
+	color: #1f1100;
 }
 
 .link {
-	color: #baafa3;
+	color: #79bcbe;
 	text-decoration: underline;
 	transition: 0.1s;
 }
 
 .link:hover {
-	color: #f2e3cc;
+	color: #1b6364;
 }
 
 .download-icon {
@@ -92,7 +92,7 @@ a {
 }
 
 p {
-	color: #f2e3cc;
+	color: #1f1100;
 	font-family: "Roboto";
 	font-weight: 550;
 	font-size: 1em;
@@ -101,7 +101,7 @@ p {
 
 strong {
 	font-weight: 600;
-	color: #f39145;
+	color: #64cccf;
 }
 
 .social-icon>img {

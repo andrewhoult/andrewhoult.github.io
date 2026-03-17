@@ -30,10 +30,16 @@ class ProjectCard {
 function populateProjects() {
 	const longCards = [
 		new ProjectCard(
+			"Chime",
+			"A platformer where you play as a mechanical bird that must find its way back home at the top of a grandfather clock.",
+			"chime",
+			"/projects/chime/images/thumbnail.png",
+		),
+		new ProjectCard(
 			"Shadows Beneath the Dust",
 			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines.",
 			"spaghetti",
-			"/projects/spaghetti/images/thumbnail.png",
+			"/projects/spaghetti/images/sbtd.jpg",
 		),
 		new ProjectCard(
 			"BEAT 'Em Up",
@@ -97,6 +103,34 @@ function populateProjects() {
 		),
 	];
 
+	const highlightCards = [
+		new ProjectCard(
+			"Shadows Beneath the Dust",
+			"A Lethal Company inspired 4 player co-op game. Loot the last remaining scraps from long abandoned mines.",
+			"spaghetti",
+			"/projects/spaghetti/images/sbtd.jpg",
+		),
+		new ProjectCard(
+			"Chime",
+			"A platformer where you play as a mechanical bird that must find its way back home at the top of a grandfather clock.",
+			"chime",
+			"/projects/chime/images/thumbnail.png",
+		),
+		new ProjectCard(
+			"WebGL Engine",
+			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
+			"webgl",
+			"/projects/webgl/images/sci1.png",
+		),
+		new ProjectCard(
+			"Raytraced Minecraft",
+			"A simple realtime raytracing engine using textures from Minecraft.",
+			"raytrace",
+			"/projects/raytrace/images/thumbnail.png",
+		),
+	];
+
+	addCards(highlightCards, "projects-list-highlights");
 	addCards(longCards, "projects-list-long");
 	addCards(jamCards, "projects-list-jam");
 	addCards(soloCards, "projects-list-solo");

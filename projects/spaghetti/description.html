@@ -1,36 +1,40 @@
 <gallery-viewer>
+	<gallery-media type="image" src="/projects/spaghetti/images/Screenshot-003.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/Screenshot-001.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/00.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/inside.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/01.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/02.png"></gallery-media>
+	<gallery-media type="image" src="/projects/spaghetti/images/03.png"></gallery-media>
 	<gallery-media type="youtube" src="sAtj19RpIsc"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/Screenshot-001.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/Screenshot-003.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/00.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/inside.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/01.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/02.png"></gallery-media>
-	<gallery-media type="image"
-		src="/projects/spaghetti/images/03.png"></gallery-media>
 </gallery-viewer>
-<br>
+<p>Shadows Beneath the Dust is a multiplayer co-op horror game inspired by Lethal Company.</p>
+<p><a class="link" href="https://store.steampowered.com/app/3588230/Shadows_Beneath_the_Dust/" target="_blank" rel="noopener">Steam Page</a></p>
+<p>Notes:</p>
 <ul>
-	<li>Development time: 8 months</li>
+	<li>Development time: 6 months</li>
 	<li>Group size: 6</li>
-	<li>Date: Sept 2024 - May 2025</li>
+	<li>Date: October 2024 - March 2025</li>
 </ul>
-<h1>Tools Used</h1>
-<p>Created in Unity.</p>
-<img alt="Unity logo" class="icon"
-	src="/images/logos/unity.png">
-<img alt="Steam logo" class="icon"
-	src="/images/logos/steam.png">
-
-<h1>Development</h1>
-
 <br>
+<p>What I Did:</p>
+<ul>
+	<li>Created a custom netcode library in C# based on Steam Net Sockets and UDP/TCP</li>
+	<li>Integrated Steam lobbies, freinds lists, achievements</li>
+	<li>Created a procedural generation algorithm for mines, ensuring a traversable path always exists to the exit</li>
+	<li>Created a custom deferred rendering pipeline in Unity that uses mesh-based shadow volumes</li>
+	<li>Created a fully networked inventory system</li>
+	<li>Created a networked first/thirdperson animation system supporting multiple layers and masks for holding various items, looking around, etc</li>
+	<li>Created a system for proximity chat with environment-based reverb and occlusion</li>
+	<li>Created textures, sounds, and music</li>
+</ul>
+<br>
+<h1>Tools Used</h1>
+<p>Created in Unity, uses Steamworks API.</p>
+<img alt="Unity logo" class="icon" src="/images/logos/unity.png">
+<img alt="Steam logo" class="icon" src="/images/logos/steam.png">
+<br>
+<h1>Development</h1>
 <p>Challenges:</p>
 <ul>
 	<li>Creating a system to easily sync all game data, especially on connection midway through a match.</li>
@@ -53,14 +57,3 @@
 	<li>Deferred renderer optimized for our game</li>
 	<li>Fully synced inventory system</li>
 </ul>
-<br>
-<p>My responsibilities:</p>
-<ul>
-	<li>Netcode library</li>
-	<li>Steam integration</li>
-	<li>Procedural generation</li>
-	<li>Graphics programming</li>
-	<li>Shared responsibility for gameplay programming</li>
-	<li>A large aspect of game design</li>
-</ul>
-<br>

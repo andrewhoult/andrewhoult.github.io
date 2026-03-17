@@ -21,7 +21,7 @@
 	<link rel="stylesheet" href="/index/index-style.css">
 
 	<script src="/project-list/project-list-loader.js"></script>
-	<script src="/index/index-background.js"></script>
+	<!-- <script src="/index/index-background.js"></script> -->
 </head>
 
 <body>
@@ -45,9 +45,11 @@
 						Download</a></p>
 				<br>
 				<ul class="no-style">
+					<li><a class="fancy-link" href="#about">– About</a></li>
+					<li><a class="fancy-link" href="#projects-anchor-highlights">– Highlights</a></li>
 					<li><a class="fancy-link" href="#projects-anchor-solo">– Solo Projects</a></li>
-					<li><a class="fancy-link" href="#projects-anchor-jam">– Game Jams</a></li>
 					<li><a class="fancy-link" href="#projects-anchor-long">– School Projects</a></li>
+					<li><a class="fancy-link" href="#projects-anchor-jam">– Game Jams</a></li>
 				</ul>
 				<span class="footer">
 					<a rel="noopener" class="social-icon" href="https://www.linkedin.com/in/andrewjhoult/"
@@ -92,8 +94,30 @@
 				<hr>
 			</span>
 
+			<h2 id="about">About</h2>
+			<p>Hi, I'm Andrew, a game developer located in Toronto, Ontario. I've been programming games for as long as
+				I can remember. I have experience in a wide variety of tools like Unity and Unreal, as well as
+				experience working with all aspects of game development from level design to texture creation and sound
+				design.</p>
+			<p>Recently, I've gotten into developing engines from scratch in C++, and that's where I've learned the most
+				about programming.</p>
+			<p>Besides programming, I also like to compose music (I play piano, but I'm not very good) and create YouTube videos.</p>
+			<p>Some of my favourite games are:</p>
+			<ul>
+				<li>Half-Life</li>
+				<li>Animal Well</li>
+				<li>Portal</li>
+				<li>Counter-Strike</li>
+				<li>The Stanley Parable</li>
+				<li>Team Fortress 2</li>
+				<li>Lethal Company</li>
+				<li>Baba is you</li>
+			</ul>
+
 			<!-- Projects list populated at runtime -->
 			<div id="projects">
+				<h2 id="projects-anchor-highlights">Highlights</h2>
+				<div id="projects-list-highlights"></div>
 				<h2 id="projects-anchor-solo">Solo Projects (small engines)</h2>
 				<div id="projects-list-solo"></div>
 				<h2 id="projects-anchor-long">School Projects</h2>

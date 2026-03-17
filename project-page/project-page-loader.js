@@ -50,5 +50,7 @@ function getProjectData() {
 			return new ProjectData("Raytracer", projectId);
 		case "spaghetti":
 			return new ProjectData("Shadows Beneath the Dust", projectId);
+		case "chime":
+			return new ProjectData("Chime", projectId);
 	}
 }
