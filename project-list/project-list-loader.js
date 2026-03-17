@@ -81,13 +81,13 @@ function populateProjects() {
 			"2D Platformer",
 			"A really simple 2D platformer written in Vulkan, written completely from scratch with only the Vulkan and Windows SDKs.",
 			"platformer",
-			"/projects/platformer/images/jump1.png",
+			"/projects/platformer/images/jump.webp",
 		),
 		new ProjectCard(
 			"WebGL Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
-			"/projects/webgl/images/sci1.png",
+			"/projects/webgl/images/sci.webp",
 		),
 		new ProjectCard(
 			"Raytraced Minecraft",
@@ -99,7 +99,7 @@ function populateProjects() {
 			"3D Physics",
 			"A simple 3D physics engine.",
 			"physics",
-			"/projects/physics/images/thumbnail1.png",
+			"/projects/physics/images/thumbnail.webp",
 		),
 	];
 
@@ -120,7 +120,7 @@ function populateProjects() {
 			"WebGL Engine",
 			"A 3D engine written in TypeScript with multiplayer support, node.js server hosting, and a web-based level editor.",
 			"webgl",
-			"/projects/webgl/images/sci1.png",
+			"/projects/webgl/images/sci.webp",
 		),
 		new ProjectCard(
 			"Raytraced Minecraft",
